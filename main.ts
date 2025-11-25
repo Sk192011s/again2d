@@ -42,13 +42,26 @@ function generateNumbers(type: string, input1: string, input2: string): string[]
   return Array.from(nums);
 }
 
+// Updated Check Logic: Uses both GameStatus and Actual Time
 async function checkBettingStatus(gameStatus: db.GameStatus) {
+    // Note: db.getGameStatus() now auto-updates currentSession based on time if needed.
+    // So gameStatus.currentSession should be correct for the time of day.
+
     if (!gameStatus.isOpen) return { allowed: false, msg: "ပွဲပိတ်ထားပါသည် (Admin မဖွင့်သေးပါ)" };
+
     const now = new Date();
     const mmTime = new Date(now.getTime() + (6.5 * 60 * 60 * 1000));
     const totalMinutes = mmTime.getUTCHours() * 60 + mmTime.getUTCMinutes();
-    if (gameStatus.currentSession === 'morning' && totalMinutes >= 705) return { allowed: false, msg: "မနက်ပိုင်း ပိတ်ချိန်ကျော်လွန်သွားပါပြီ (11:45 AM)" };
-    if (gameStatus.currentSession === 'evening' && totalMinutes >= 945) return { allowed: false, msg: "ညနေပိုင်း ပိတ်ချိန်ကျော်လွန်သွားပါပြီ (3:45 PM)" };
+    
+    // Morning Deadline (11:45 = 705 mins)
+    if (gameStatus.currentSession === 'morning' && totalMinutes >= 705) {
+        return { allowed: false, msg: "မနက်ပိုင်း ပိတ်ချိန်ကျော်လွန်သွားပါပြီ (11:45 AM)" };
+    }
+    // Evening Deadline (15:45 = 945 mins)
+    if (gameStatus.currentSession === 'evening' && totalMinutes >= 945) {
+        return { allowed: false, msg: "ညနေပိုင်း ပိတ်ချိန်ကျော်လွန်သွားပါပြီ (3:45 PM)" };
+    }
+
     return { allowed: true };
 }
 
@@ -83,7 +96,7 @@ async function handler(req: Request): Promise<Response> {
   if (!user) return new Response(null, {status:302, headers:{"location":"/login"}});
 
   if (url.pathname === "/") {
-     const status = await db.getGameStatus();
+     const status = await db.getGameStatus(); // This triggers auto-update logic in db.ts
      return new Response(ui.homePage(user, status), {headers:{"content-type":"text/html"}});
   }
 
@@ -92,7 +105,6 @@ async function handler(req: Request): Promise<Response> {
      return new Response(ui.winHistoryPage(res), {headers:{"content-type":"text/html"}});
   }
 
-  // --- Profile Routes ---
   if (url.pathname === "/profile") {
      const {items} = await db.getHistory(user.username, "", 50);
      return new Response(ui.profilePage(user, items), {headers:{"content-type":"text/html"}});
@@ -101,19 +113,16 @@ async function handler(req: Request): Promise<Response> {
   if (url.pathname === "/profile/password" && req.method === "POST") {
     const form = await req.formData();
     await db.changePassword(user.username, form.get("new_password") as string);
-    // Reload profile with success message
     const {items} = await db.getHistory(user.username, "", 50);
     return new Response(ui.profilePage(user, items, "Password ပြောင်းလဲပြီးပါပြီ"), {headers:{"content-type":"text/html"}});
   }
 
-  // New Route: Clear History
   if (url.pathname === "/profile/clear" && req.method === "POST") {
       await db.clearUserHistory(user.username);
       const {items} = await db.getHistory(user.username, "", 50);
-      return new Response(ui.profilePage(user, items, "မှတ်တမ်းဟောင်းများကို ရှင်းလင်းပြီးပါပြီ"), {headers:{"content-type":"text/html"}});
+      return new Response(ui.profilePage(user, items, "မှတ်တမ်းများကို ရှင်းလင်းပြီးပါပြီ"), {headers:{"content-type":"text/html"}});
   }
 
-  // --- Betting ---
   if (url.pathname === "/bet" && req.method === "POST") {
      const status = await db.getGameStatus();
      const check = await checkBettingStatus(status);
@@ -151,7 +160,6 @@ async function handler(req: Request): Promise<Response> {
      return new Response(ui.voucherPage({username:currentUser.username, total:totalCost, bets:betList}), {headers:{"content-type":"text/html"}});
   }
 
-  // --- Admin ---
   if(url.pathname.startsWith("/admin") && user.role === "admin") {
       if(url.pathname === "/admin") return new Response(ui.adminPage(), {headers:{"content-type":"text/html"}});
       if(url.pathname === "/admin/topup" && req.method==="POST") {
@@ -162,7 +170,7 @@ async function handler(req: Request): Promise<Response> {
       if(url.pathname === "/admin/payout" && req.method==="POST") {
           const f = await req.formData();
           const count = await db.processPayout(f.get("number") as string, 80, f.get("session") as any);
-          return new Response(ui.adminPage(`Paid ${count} winners & Session Switched`), {headers:{"content-type":"text/html"}});
+          return new Response(ui.adminPage(`Paid ${count} winners`), {headers:{"content-type":"text/html"}});
       }
   }
 
