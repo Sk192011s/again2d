@@ -32,15 +32,14 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
           button { cursor: pointer; font-weight: 600; border: none; color: white; background: var(--primary); }
           button.secondary { background: #11998e; }
           button.danger { background: #dc3545; }
+          button.warning { background: #ffc107; color: black; }
           button.admin { background: #2c3e50; }
 
-          /* Bottom Nav */
           .bottom-nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 12px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 1000; border-top-left-radius: 20px; border-top-right-radius: 20px; }
           .nav-item { text-decoration: none; color: #999; text-align: center; font-size: 0.8rem; flex: 1; }
           .nav-item.active { color: var(--primary); font-weight: bold; }
           .nav-icon { font-size: 1.4rem; display: block; margin-bottom: 2px; }
 
-          /* Tabs & Utilities */
           .chip-container { display: flex; gap: 10px; overflow-x: auto; padding: 5px 15px; }
           .chip { padding: 8px 16px; background: white; border-radius: 20px; white-space: nowrap; border: 1px solid #ddd; cursor: pointer; }
           .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
@@ -48,7 +47,6 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
           .tab-content.active { display: block; }
           .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
           
-          /* Status Badges */
           .badge { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; }
           .bg-pending { background: #fff3cd; color: #856404; }
           .bg-win { background: #d1e7dd; color: #0f5132; }
@@ -73,11 +71,7 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
         </div>` : ''}
 
         <script>
-           // Loading for Links & Forms
-           document.querySelectorAll('a:not([href^="#"]):not([href^="javascript"])').forEach(a => a.onclick = () => document.getElementById('loading').style.display = 'flex');
-           document.querySelectorAll('form').forEach(f => f.onsubmit = () => document.getElementById('loading').style.display = 'flex');
-           window.onpageshow = () => document.getElementById('loading').style.display = 'none';
-
+           // Simple Global Script
            function openTab(id, btn) {
                document.querySelectorAll('.tab-content').forEach(d => d.classList.remove('active'));
                document.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
@@ -90,23 +84,17 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
                     let l = document.createElement("a"); l.download = "2d_voucher.png"; l.href = c.toDataURL(); l.click();
                 });
            }
-           
-           // Fixed Confirm Function
-           function checkConfirm(event, msg) {
-               if(!confirm(msg)) {
-                   event.preventDefault();
-                   document.getElementById('loading').style.display = 'none'; // hide loader if canceled
-                   return false;
-               }
-               return true;
-           }
 
-           function confirmBet(event) {
-               const form = event.target;
-               const amt = form.querySelector('[name="amount"]').value;
-               if(!amt) { alert("ပမာဏ ထည့်ပါ"); event.preventDefault(); return false; }
-               return checkConfirm(event, "ထိုးမှာ သေချာလား?");
-           }
+           // Loading Logic
+           document.addEventListener('DOMContentLoaded', () => {
+              document.querySelectorAll('a:not([href^="#"]):not([href^="javascript"])').forEach(a => a.onclick = () => document.getElementById('loading').style.display = 'flex');
+              document.querySelectorAll('form').forEach(f => f.onsubmit = () => {
+                  // Only show loader if confirm passed (default behavior of form submit after return true)
+                  // So we check inside onsubmit attributes manually or just rely on delay
+                  document.getElementById('loading').style.display = 'flex';
+              });
+           });
+           window.onpageshow = () => document.getElementById('loading').style.display = 'none';
         </script>
       </body>
     </html>
@@ -116,8 +104,10 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
 // 1. Home Page
 export function homePage(user: any, gameStatus: any, msg = "") {
   const sessTxt = gameStatus.currentSession === 'morning' ? "☀️ မနက်ပိုင်း (12:00)" : "🌙 ညနေပိုင်း (4:30)";
-  const statusColor = gameStatus.isOpen ? "#4caf50" : "#f44336";
-  const statusTxt = gameStatus.isOpen ? "ဖွင့်သည်" : "ပိတ်ထားသည်";
+  // If manually closed, show Red Status
+  const isClosed = !gameStatus.isOpen || gameStatus.isManuallyClosed;
+  const statusColor = isClosed ? "#f44336" : "#4caf50";
+  const statusTxt = isClosed ? "ပိတ်ထားသည်" : "ဖွင့်သည်";
 
   return layout(`
     <div class="header-card">
@@ -142,14 +132,15 @@ export function homePage(user: any, gameStatus: any, msg = "") {
         </div>
     </div>
 
+    <!-- We use inline onclick="return confirm(...)" for maximum reliability -->
     <div id="tab-2d" class="tab-content active">
         <div class="card">
           <h4>💎 ရိုးရိုးထိုး (R ပါ)</h4>
-          <form method="POST" action="/bet" onsubmit="return confirmBet(event)">
+          <form method="POST" action="/bet">
             <input type="hidden" name="type" value="normal">
             <div class="grid-2"><input name="number" type="tel" maxlength="2" placeholder="ဂဏန်း" required><input name="amount" type="number" placeholder="ပမာဏ" required></div>
             <div style="margin:10px 0;"><input type="checkbox" name="r_bet" value="yes" style="width:auto"> R (အပြန်အလှန်)</div>
-            <button>ထိုးမည်</button>
+            <button onclick="return confirm('ထိုးမှာ သေချာလား?')">ထိုးမည်</button>
           </form>
         </div>
     </div>
@@ -157,11 +148,11 @@ export function homePage(user: any, gameStatus: any, msg = "") {
     <div id="tab-break" class="tab-content">
         <div class="card">
           <h4>⚡ အပယ် (Break)</h4>
-          <form method="POST" action="/bet" onsubmit="return confirmBet(event)">
+          <form method="POST" action="/bet">
             <input type="hidden" name="type" value="break">
             <input name="digits" type="tel" maxlength="3" placeholder="ဂဏန်း ၃ လုံး (e.g. 538)" required style="text-align:center; letter-spacing:5px;">
             <input name="amount" type="number" placeholder="ပမာဏ" required>
-            <button class="secondary">ထိုးမည်</button>
+            <button class="secondary" onclick="return confirm('ထိုးမှာ သေချာလား?')">ထိုးမည်</button>
           </form>
         </div>
     </div>
@@ -169,14 +160,14 @@ export function homePage(user: any, gameStatus: any, msg = "") {
     <div id="tab-ht" class="tab-content">
         <div class="card">
           <h4>🔢 လုံးစီး</h4>
-          <form method="POST" action="/bet" onsubmit="return confirmBet(event)">
+          <form method="POST" action="/bet">
             <input type="hidden" name="type" value="head_tail">
             <div class="grid-2">
                 <select name="position"><option value="head">ထိပ်စီး</option><option value="tail">နောက်ပိတ်</option></select>
                 <input name="digit" type="tel" maxlength="1" placeholder="ဂဏန်း" required>
             </div>
             <input name="amount" type="number" placeholder="ပမာဏ" required>
-            <button>ထိုးမည်</button>
+            <button onclick="return confirm('ထိုးမှာ သေချာလား?')">ထိုးမည်</button>
           </form>
         </div>
     </div>
@@ -184,11 +175,11 @@ export function homePage(user: any, gameStatus: any, msg = "") {
     <div id="tab-short" class="tab-content">
         <div class="card">
           <h4>🚀 အမြန်ထိုး</h4>
-          <form method="POST" action="/bet" onsubmit="return confirmBet(event)">
+          <form method="POST" action="/bet">
             <input type="hidden" name="type" value="shortcut">
             <div class="grid-2">
-               <button type="submit" name="set" value="double" class="secondary" style="background:#ffb75e; color:black;">အပူး</button>
-               <button type="submit" name="set" value="power" class="secondary" style="background:#8f94fb;">ပါဝါ</button>
+               <button type="submit" name="set" value="double" class="secondary" style="background:#ffb75e; color:black;" onclick="return confirm('အပူး ထိုးမှာသေချာလား?')">အပူး</button>
+               <button type="submit" name="set" value="power" class="secondary" style="background:#8f94fb;" onclick="return confirm('ပါဝါ ထိုးမှာသေချာလား?')">ပါဝါ</button>
             </div>
             <input name="amount" type="number" placeholder="ပမာဏ" required style="margin-top:10px;">
           </form>
@@ -199,10 +190,11 @@ export function homePage(user: any, gameStatus: any, msg = "") {
   `, '/', true);
 }
 
-// 2. Profile Page (Updated History Labels)
+// 2. Profile Page (Enhanced History)
 export function profilePage(user: any, historyItems: any[], msg="") {
     const list = historyItems.length ? historyItems.map(i => {
        let badgeClass = 'bg-bet', text = '', sign = '-';
+       
        if (i.type === 'win') { badgeClass='bg-win'; text='Win'; sign='+'; }
        else if (i.type === 'topup') { badgeClass='bg-topup'; text='Deposit'; sign='+'; }
        else if (i.type === 'withdraw') { badgeClass='bg-withdraw'; text='Withdraw'; sign='-'; }
@@ -211,9 +203,12 @@ export function profilePage(user: any, historyItems: any[], msg="") {
 
        return `
        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; background:white;">
-          <div><div style="font-weight:600;">${i.description}</div><div style="font-size:0.75rem; color:#888;">${toMMTime(i.timestamp)}</div></div>
+          <div>
+            <div style="font-weight:600;">${i.description}</div>
+            <div style="font-size:0.75rem; color:#888;">${toMMTime(i.timestamp)}</div>
+          </div>
           <div style="text-align:right;">
-             <div style="font-weight:bold;">${sign}${i.amount}</div>
+             <div style="font-weight:bold; color:${sign==='+'?'green':'black'};">${sign}${i.amount}</div>
              <div class="badge ${badgeClass}">${text}</div>
           </div>
        </div>`;
@@ -228,8 +223,8 @@ export function profilePage(user: any, historyItems: any[], msg="") {
       <div style="margin-top:-20px; padding:0 15px;">
          <div style="display:flex; justify-content:space-between; align-items:center; margin:10px 5px;">
              <h4>📜 မှတ်တမ်း</h4>
-             <form method="POST" action="/profile/clear" onsubmit="return checkConfirm(event, 'Pending မှလွဲ၍ ကျန်သည်များ ဖျက်မည်။ သေချာလား?')">
-                 <button class="danger" style="padding:5px 10px; font-size:0.8rem;">🗑️ ရှင်းမည်</button>
+             <form method="POST" action="/profile/clear">
+                 <button class="danger" style="padding:5px 10px; font-size:0.8rem;" onclick="return confirm('Pending မှလွဲ၍ ကျန်သည်များ ဖျက်မည်။ သေချာလား?')">🗑️ ရှင်းမည်</button>
              </form>
          </div>
          <div class="card" style="padding:0; overflow:hidden; max-height:400px; overflow-y:auto;">${list}</div>
@@ -241,18 +236,30 @@ export function profilePage(user: any, historyItems: any[], msg="") {
              </form>
          </div>
          <div style="text-align:center; margin-bottom:20px;">
-             <form method="POST" action="/logout"><button class="danger" style="width:auto;">အကောင့်ထွက်မည်</button></form>
+             <form method="POST" action="/logout"><button class="danger" style="width:auto;" onclick="return confirm('အကောင့်ထွက်မှာ သေချာလား?')">အကောင့်ထွက်မည်</button></form>
          </div>
       </div>
     `, '/profile', true);
 }
 
-// 3. Admin Page (With Winners List)
-export function adminPage(winners: string[] = [], msg="") { 
+// 3. Admin Page (Manual Toggle)
+export function adminPage(winners: string[] = [], msg="", gameStatus: any) { 
     return layout(`
     <h2>👮‍♂️ Admin Panel</h2>
     ${msg ? `<div style="padding:10px; background:#d1e7dd; margin-bottom:10px;">${msg}</div>` : ''}
     
+    <!-- Manual Close Toggle -->
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <b>Market Status:</b> <span class="badge" style="font-size:1rem; background:${gameStatus.isManuallyClosed?'red':'green'}; color:white;">${gameStatus.isManuallyClosed ? 'CLOSED' : 'OPEN'}</span>
+        </div>
+        <form method="POST" action="/admin/toggle_status">
+            <button class="${gameStatus.isManuallyClosed ? 'secondary' : 'danger'}" style="width:auto;">
+                ${gameStatus.isManuallyClosed ? '🔓 ပွဲပြန်ဖွင့်မည်' : '🔒 ပွဲပိတ်မည်'}
+            </button>
+        </form>
+    </div>
+
     ${winners.length > 0 ? `
     <div class="card" style="border:2px solid green;">
         <h3>🎉 ယခုပေါက်သူများ (${winners.length})</h3>
@@ -265,18 +272,18 @@ export function adminPage(winners: string[] = [], msg="") {
             <input name="username" placeholder="Username" required>
             <input name="amount" type="number" placeholder="Amount" required>
             <div class="grid-2">
-                <button type="submit" name="action" value="topup" class="secondary">ငွေဖြည့်</button>
-                <button type="submit" name="action" value="withdraw" class="danger">ငွေထုတ်</button>
+                <button type="submit" name="action" value="topup" class="secondary" onclick="return confirm('ငွေဖြည့်မှာ သေချာလား?')">ငွေဖြည့်</button>
+                <button type="submit" name="action" value="withdraw" class="danger" onclick="return confirm('ငွေထုတ်မှာ သေချာလား?')">ငွေထုတ်</button>
             </div>
         </form>
     </div>
     
     <div class="card">
         <h3>🏆 လျော်ကြေး (Payout)</h3>
-        <form method="POST" action="/admin/payout" onsubmit="return checkConfirm(event, 'လျော်ကြေးရှင်းမှာ သေချာလား?')">
+        <form method="POST" action="/admin/payout">
             <input name="number" placeholder="ထွက်ဂဏန်း (e.g. 55)" required>
             <select name="session"><option value="morning">Morning</option><option value="evening">Evening</option></select>
-            <button class="admin">ရှင်းမည်</button>
+            <button class="admin" onclick="return confirm('လျော်ကြေးရှင်းမှာ သေချာလား?')">ရှင်းမည်</button>
         </form>
     </div>
     `, '/admin', true); 
