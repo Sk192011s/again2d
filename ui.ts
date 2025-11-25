@@ -9,10 +9,9 @@ function toMMTime(timestamp: number) {
     return `${date.getUTCDate()}/${date.getUTCMonth()+1} ${hours}:${minutes} ${ampm}`;
 }
 
-// New helper for Date Only
 function getTodayDate() {
     const date = new Date(Date.now() + (6.5 * 60 * 60 * 1000));
-    const day = date.toLocaleDateString('en-US', { weekday: 'long' }); // e.g. Monday
+    const day = date.toLocaleDateString('en-US', { weekday: 'long' });
     return `${date.getUTCDate()}-${date.getUTCMonth()+1}-${date.getUTCFullYear()} (${day})`;
 }
 
@@ -29,246 +28,149 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
         <style>
           :root { --primary: #4e54c8; --secondary: #8f94fb; --bg: #f3f4f6; }
           body { font-family: 'Poppins', sans-serif; margin: 0; padding: 0 0 70px 0; background: var(--bg); color: #333; }
-          
           .card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin: 15px; border: none; }
           .header-card { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; border-radius: 0 0 20px 20px; padding: 25px 20px; margin:0; }
-          
           input, select, button { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #e0e0e0; border-radius: 12px; box-sizing: border-box; font-size: 15px; outline: none; }
           input:focus, select:focus { border-color: var(--primary); }
-          
           button { cursor: pointer; font-weight: 600; border: none; color: white; background: var(--primary); transition: 0.2s; }
           button:active { transform: scale(0.98); }
           button.secondary { background: #11998e; }
           button.danger { background: #dc3545; }
           button.admin { background: #2c3e50; }
-          
-          .btn-clear { background: #dc3545; color: white; padding: 6px 15px; border-radius: 8px; font-size: 0.85rem; border: none; cursor: pointer; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 5px rgba(220, 53, 69, 0.3); }
-
+          .btn-clear { background: #dc3545; color: white; padding: 6px 15px; border-radius: 8px; font-size: 0.85rem; border: none; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+          .btn-icon { background: none; border: none; padding: 5px; cursor: pointer; font-size: 1.2rem; color: #dc3545; box-shadow: none; }
           .bottom-nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 12px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 1000; border-top-left-radius: 20px; border-top-right-radius: 20px; }
           .nav-item { text-decoration: none; color: #999; text-align: center; font-size: 0.8rem; flex: 1; }
           .nav-item.active { color: var(--primary); font-weight: bold; }
           .nav-icon { font-size: 1.4rem; display: block; margin-bottom: 2px; }
-
           .chip-container { display: flex; gap: 10px; overflow-x: auto; padding: 5px 15px; }
           .chip { padding: 8px 16px; background: white; border-radius: 20px; white-space: nowrap; border: 1px solid #ddd; cursor: pointer; }
           .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
           .tab-content { display: none; }
           .tab-content.active { display: block; }
           .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-          
           .badge { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; }
           .bg-pending { background: #fff3cd; color: #856404; }
           .bg-win { background: #d1e7dd; color: #0f5132; }
+          .bg-lost { background: #eee; color: #999; text-decoration: line-through; }
           .bg-bet { background: #f8d7da; color: #842029; }
           .bg-topup { background: #cff4fc; color: #055160; }
           .bg-withdraw { background: #e2e3e5; color: #383d41; }
-
-          .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 3000; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
-          .modal-box { background: white; width: 85%; max-width: 350px; border-radius: 20px; padding: 25px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transform: scale(0.9); transition: transform 0.2s; }
-          .modal-box.open { transform: scale(1); }
-          .modal-title { font-size: 1.2rem; font-weight: bold; margin-bottom: 10px; color: var(--primary); }
-          .modal-details { background: #f8f9fa; padding: 15px; border-radius: 10px; margin: 15px 0; text-align: left; font-size: 0.9rem; border-left: 4px solid var(--primary); }
-          .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
           
           #loading { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); z-index:2000; align-items:center; justify-content:center; }
           .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+          
+          /* Modal */
+          .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 3000; align-items: center; justify-content: center; }
+          .modal-box { background: white; width: 85%; max-width: 350px; border-radius: 20px; padding: 25px; text-align: center; }
+          .modal-title { font-size: 1.2rem; font-weight: bold; margin-bottom: 10px; color: var(--primary); }
+          .modal-details { background: #f8f9fa; padding: 15px; border-radius: 10px; margin: 15px 0; text-align: left; }
+          .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
         </style>
       </head>
       <body>
         <div id="loading"><div class="spinner"></div></div>
-
-        <div id="confirmModal" class="modal-overlay">
-            <div class="modal-box" id="modalBox">
-                <div class="modal-title">❗ အတည်ပြုပါ</div>
-                <div class="modal-details" id="modalText"></div>
-                <div class="modal-actions">
-                    <button class="danger" onclick="closeModal()">မလုပ်တော့ပါ</button>
-                    <button class="secondary" onclick="proceedAction()">သေချာသည်</button>
-                </div>
-            </div>
-        </div>
-
+        <div id="confirmModal" class="modal-overlay"><div class="modal-box" id="modalBox"><div class="modal-title">❗ အတည်ပြုပါ</div><div class="modal-details" id="modalText"></div><div class="modal-actions"><button class="danger" onclick="closeModal()">မလုပ်တော့ပါ</button><button class="secondary" onclick="proceedAction()">သေချာသည်</button></div></div></div>
         ${content}
-        
-        ${isLoggedIn ? `
-        <div class="bottom-nav">
-          <a href="/" class="nav-item ${currentPath==='/'?'active':''}"><span class="nav-icon">🏠</span>ပင်မ</a>
-          <a href="/results" class="nav-item ${currentPath==='/results'?'active':''}"><span class="nav-icon">🏆</span>ထွက်ဂဏန်း</a>
-          <a href="/profile" class="nav-item ${currentPath==='/profile'?'active':''}"><span class="nav-icon">👤</span>အကောင့်</a>
-        </div>` : ''}
-
+        ${isLoggedIn ? `<div class="bottom-nav"><a href="/" class="nav-item ${currentPath==='/'?'active':''}"><span class="nav-icon">🏠</span>ပင်မ</a><a href="/results" class="nav-item ${currentPath==='/results'?'active':''}"><span class="nav-icon">🏆</span>ထွက်ဂဏန်း</a><a href="/profile" class="nav-item ${currentPath==='/profile'?'active':''}"><span class="nav-icon">👤</span>အကောင့်</a></div>` : ''}
         <script>
            document.querySelectorAll('a:not([href^="#"]):not([href^="javascript"])').forEach(a => a.onclick = () => document.getElementById('loading').style.display = 'flex');
            window.onpageshow = () => document.getElementById('loading').style.display = 'none';
-
-           function openTab(id, btn) {
-               document.querySelectorAll('.tab-content').forEach(d => d.classList.remove('active'));
-               document.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
-               document.getElementById(id).classList.add('active');
-               btn.classList.add('active');
-           }
-           
-           function dlVoucher() {
-                html2canvas(document.getElementById("voucher-div")).then(c => {
-                    let l = document.createElement("a"); l.download = "2d_voucher.png"; l.href = c.toDataURL(); l.click();
-                });
-           }
-
+           function openTab(id, btn) { document.querySelectorAll('.tab-content').forEach(d => d.classList.remove('active')); document.querySelectorAll('.chip').forEach(b => b.classList.remove('active')); document.getElementById(id).classList.add('active'); btn.classList.add('active'); }
+           function dlVoucher() { html2canvas(document.getElementById("voucher-div")).then(c => { let l = document.createElement("a"); l.download = "2d_voucher.png"; l.href = c.toDataURL(); l.click(); }); }
            let pendingForm = null;
-           function triggerConfirm(event, desc) {
-               event.preventDefault(); 
-               const form = event.target.closest('form');
-               const amtInput = form.querySelector('[name="amount"]');
-               if(amtInput && !amtInput.value) { alert("ပမာဏ ထည့်ပါ"); return false; }
-
-               let detailText = desc || "လုပ်ဆောင်ချက်ကို အတည်ပြုပါ။";
-               const userInput = form.querySelector('[name="username"]');
-               if(userInput && userInput.tagName === 'SELECT') {
-                   const selectedUser = userInput.options[userInput.selectedIndex].text;
-                   detailText += \`<br><br><b>User:</b> \${selectedUser}\`;
-               }
-               if(amtInput) detailText += \`<br><b>Amount:</b> \${amtInput.value}\`;
-
-               pendingForm = form;
-               document.getElementById('modalText').innerHTML = detailText;
-               const modal = document.getElementById('confirmModal');
-               modal.style.display = 'flex';
-               setTimeout(() => document.getElementById('modalBox').classList.add('open'), 10);
-           }
-
-           function closeModal() {
-               document.getElementById('modalBox').classList.remove('open');
-               setTimeout(() => {
-                   document.getElementById('confirmModal').style.display = 'none';
-                   pendingForm = null;
-               }, 200);
-           }
-
-           function proceedAction() {
-               if(pendingForm) {
-                   document.getElementById('loading').style.display = 'flex';
-                   pendingForm.submit();
-               }
-           }
+           function triggerConfirm(event, desc) { event.preventDefault(); const form = event.target.closest('form'); const amtInput = form.querySelector('[name="amount"]'); if(amtInput && !amtInput.value) { alert("ပမာဏ ထည့်ပါ"); return false; } let detailText = desc || "လုပ်ဆောင်ချက်ကို အတည်ပြုပါ။"; const userInput = form.querySelector('[name="username"]'); if(userInput && userInput.tagName === 'SELECT') { const selectedUser = userInput.options[userInput.selectedIndex].text; detailText += \`<br><br><b>User:</b> \${selectedUser}\`; } if(amtInput) detailText += \`<br><b>Amount:</b> \${amtInput.value}\`; pendingForm = form; document.getElementById('modalText').innerHTML = detailText; const modal = document.getElementById('confirmModal'); modal.style.display = 'flex'; }
+           function closeModal() { document.getElementById('confirmModal').style.display = 'none'; pendingForm = null; }
+           function proceedAction() { if(pendingForm) { document.getElementById('loading').style.display = 'flex'; pendingForm.submit(); } }
         </script>
       </body>
     </html>
   `;
 }
 
+// Home Page (Same)
 export function homePage(user: any, gameStatus: any, msg = "") {
   const sessTxt = gameStatus.currentSession === 'morning' ? "☀️ မနက်ပိုင်း (12:00)" : "🌙 ညနေပိုင်း (4:30)";
-  
-  // ** Check Time for Auto Close Display **
   const now = new Date();
   const mmTime = new Date(now.getTime() + (6.5 * 60 * 60 * 1000));
   const totalMinutes = mmTime.getUTCHours() * 60 + mmTime.getUTCMinutes();
-  
-  const isMorningClose = gameStatus.currentSession === 'morning' && totalMinutes >= 705; // 11:45
-  const isEveningClose = gameStatus.currentSession === 'evening' && totalMinutes >= 945; // 15:45
-  
-  // UI shows CLOSED if: Manually closed OR Admin closed OR Time is up
+  const isMorningClose = gameStatus.currentSession === 'morning' && totalMinutes >= 705;
+  const isEveningClose = gameStatus.currentSession === 'evening' && totalMinutes >= 945;
   const showClosed = !gameStatus.isOpen || gameStatus.isManuallyClosed || isMorningClose || isEveningClose;
-  
   const statusColor = showClosed ? "#f44336" : "#4caf50";
   const statusTxt = showClosed ? "ပိတ်ထားသည်" : "ဖွင့်သည်";
-  
-  // Date
   const todayDate = getTodayDate();
 
   return layout(`
-    <div class="header-card">
-       <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <h3 style="margin:0;">မင်္ဂလာပါ,</h3>
-            <h2 style="margin:0;">${user.username}</h2>
-            <small style="opacity:0.8;">${todayDate}</small>
-          </div>
-          <div style="text-align:right;"><div style="opacity:0.9;">လက်ကျန်ငွေ</div><div style="font-size:1.4rem; font-weight:bold;">${user.balance.toLocaleString()} Ks</div></div>
-       </div>
-       <div style="margin-top:15px; background:rgba(255,255,255,0.15); padding:10px; border-radius:10px; display:flex; justify-content:space-between;">
-          <span>${sessTxt}</span>
-          <span style="background:white; color:${statusColor}; padding:2px 10px; border-radius:10px; font-weight:bold;">● ${statusTxt}</span>
-       </div>
-    </div>
-    
+    <div class="header-card"><div style="display:flex; justify-content:space-between; align-items:center;"><div><h3 style="margin:0;">မင်္ဂလာပါ,</h3><h2 style="margin:0;">${user.username}</h2><small style="opacity:0.8;">${todayDate}</small></div><div style="text-align:right;"><div style="opacity:0.9;">လက်ကျန်ငွေ</div><div style="font-size:1.4rem; font-weight:bold;">${user.balance.toLocaleString()} Ks</div></div></div><div style="margin-top:15px; background:rgba(255,255,255,0.15); padding:10px; border-radius:10px; display:flex; justify-content:space-between;"><span>${sessTxt}</span><span style="background:white; color:${statusColor}; padding:2px 10px; border-radius:10px; font-weight:bold;">● ${statusTxt}</span></div></div>
     ${msg ? `<div style="margin:15px; padding:15px; background:${msg.includes('❌')?'#ffebee':'#e8f5e9'}; border-radius:10px; text-align:center;">${msg}</div>` : ''}
-
-    <div style="margin-top:10px;">
-        <div class="chip-container">
-            <div class="chip active" onclick="openTab('tab-2d', this)">💎 2D</div>
-            <div class="chip" onclick="openTab('tab-break', this)">⚡ Break</div>
-            <div class="chip" onclick="openTab('tab-ht', this)">🔢 လုံးစီး</div>
-            <div class="chip" onclick="openTab('tab-short', this)">🚀 Shortcut</div>
-        </div>
-    </div>
-
+    <div style="margin-top:10px;"><div class="chip-container"><div class="chip active" onclick="openTab('tab-2d', this)">💎 2D</div><div class="chip" onclick="openTab('tab-break', this)">⚡ Break</div><div class="chip" onclick="openTab('tab-ht', this)">🔢 လုံးစီး</div><div class="chip" onclick="openTab('tab-short', this)">🚀 Shortcut</div></div></div>
     <div id="tab-2d" class="tab-content active"><div class="card"><h4>💎 ရိုးရိုးထိုး (R ပါ)</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="normal"><div class="grid-2"><input name="number" type="tel" maxlength="2" placeholder="ဂဏန်း" required><input name="amount" type="number" placeholder="ပမာဏ" required></div><div style="margin:10px 0;"><input type="checkbox" name="r_bet" value="yes" style="width:auto"> R (အပြန်အလှန်)</div><button onclick="triggerConfirm(event, '2D ရိုးရိုး ထိုးမည်။')">ထိုးမည်</button></form></div></div>
     <div id="tab-break" class="tab-content"><div class="card"><h4>⚡ Break</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="break"><input name="digits" type="tel" maxlength="3" placeholder="ဂဏန်း ၃ လုံး" required style="text-align:center; letter-spacing:5px;"><input name="amount" type="number" placeholder="ပမာဏ" required><button class="secondary" onclick="triggerConfirm(event, 'Break ထိုးမည်။')">ထိုးမည်</button></form></div></div>
     <div id="tab-ht" class="tab-content"><div class="card"><h4>🔢 လုံးစီး</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="head_tail"><div class="grid-2"><select name="position"><option value="head">ထိပ်စီး</option><option value="tail">နောက်ပိတ်</option></select><input name="digit" type="tel" maxlength="1" placeholder="ဂဏန်း" required></div><input name="amount" type="number" placeholder="ပမာဏ" required><button onclick="triggerConfirm(event, 'လုံးစီး ထိုးမည်။')">ထိုးမည်</button></form></div></div>
     <div id="tab-short" class="tab-content"><div class="card"><h4>🚀 Shortcut</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="shortcut"><div class="grid-2"><button type="submit" name="set" value="double" class="secondary" style="background:#ffb75e; color:black;" onclick="triggerConfirm(event, 'အပူး ထိုးမည်')">အပူး</button><button type="submit" name="set" value="power" class="secondary" style="background:#8f94fb;" onclick="triggerConfirm(event, 'ပါဝါ ထိုးမည်')">ပါဝါ</button></div><input name="amount" type="number" placeholder="ပမာဏ" required style="margin-top:10px;"></form></div></div>
-    
     ${user.role==='admin' ? '<div style="text-align:center;"><a href="/admin"><button class="admin" style="width:auto; padding:10px 30px;">Admin Panel</button></a></div>' : ''}
   `, '/', true);
 }
 
+// 2. Profile Page (Updated Badges & Win Trash Can)
 export function profilePage(user: any, historyItems: any[], msg="") {
     const list = historyItems.length ? historyItems.map(i => {
-       let badgeClass='bg-bet',text='',sign='-';
-       if(i.type==='win'){badgeClass='bg-win';text='Win';sign='+';}
-       else if(i.type==='topup'){badgeClass='bg-topup';text='Deposit';sign='+';}
-       else if(i.type==='withdraw'){badgeClass='bg-withdraw';text='Withdraw';sign='-';}
-       else if(i.status==='pending'){badgeClass='bg-pending';text='Pending';sign='-';}
-       return `<div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; background:white;"><div><div style="font-weight:600;">${i.description}</div><div style="font-size:0.75rem; color:#888;">${toMMTime(i.timestamp)}</div></div><div style="text-align:right;"><div style="font-weight:bold; color:${sign==='+'?'green':'black'};">${sign}${i.amount}</div><div class="badge ${badgeClass}">${text}</div></div></div>`;
-    }).join('') : '<div style="padding:20px; text-align:center; color:#888;">မှတ်တမ်း မရှိပါ</div>';
-    return layout(`<div style="background:var(--primary); padding:30px 20px; color:white; border-radius:0 0 20px 20px; text-align:center;"><div style="font-size:2rem; font-weight:bold;">${user.username}</div><div>လက်ကျန်ငွေ: ${user.balance.toLocaleString()} Ks</div></div>${msg?`<div style="text-align:center; padding:10px; background:#e8f5e9; color:green; margin:10px;">${msg}</div>`:''}<div style="margin-top:-20px; padding:0 15px;"><div style="display:flex; justify-content:space-between; align-items:center; margin:10px 5px;"><h4>📜 မှတ်တမ်း</h4><form method="POST" action="/profile/clear"><button class="danger" class="btn-clear" onclick="triggerConfirm(event, 'Pending မှလွဲ၍ ကျန်သည်များ ဖျက်မည်')">🗑️ ရှင်းမည်</button></form></div><div class="card" style="padding:0; overflow:hidden; max-height:400px; overflow-y:auto;">${list}</div><div class="card"><h4>🔐 Password</h4><form method="POST" action="/profile/password"><input type="password" name="new_password" placeholder="New Pass" required><button class="secondary" onclick="triggerConfirm(event, 'Password ပြောင်းမည်')">ပြောင်းမည်</button></form></div><div style="text-align:center; margin-bottom:20px;"><form method="POST" action="/logout"><button class="danger" style="width:auto;" onclick="triggerConfirm(event, 'Logout လုပ်မည်')">Logout</button></form></div></div>`, '/profile', true);
-}
+       let badgeClass='bg-bet', text='', sign='-';
+       let extraAction = '';
 
-export function adminPage(users: any[], winners: string[] = [], msg="", gameStatus: any) { 
-    const userOptions = users.map(u => `<option value="${u.username}">${u.username} (${u.balance} Ks)</option>`).join('');
+       if (i.type === 'win') { 
+           badgeClass='bg-win'; text='Win'; sign='+'; 
+           // Add Trash Icon for Win items
+           extraAction = `
+             <form method="POST" action="/profile/delete_item" style="display:inline;" onsubmit="return confirm('ဒီမှတ်တမ်းကို ဖျက်မှာလား?')">
+                <input type="hidden" name="id" value="${i.id}">
+                <input type="hidden" name="ts" value="${i.timestamp}">
+                <button type="submit" class="btn-icon">🗑️</button>
+             </form>`;
+       }
+       else if (i.type === 'topup') { badgeClass='bg-topup'; text='Deposit'; sign='+'; }
+       else if (i.type === 'withdraw') { badgeClass='bg-withdraw'; text='Withdraw'; sign='-'; }
+       else if (i.status === 'pending') { badgeClass='bg-pending'; text='Pending'; sign='-'; }
+       else if (i.status === 'lost') { badgeClass='bg-lost'; text='Lost'; sign='-'; }
+       else if (i.status === 'won') { badgeClass='bg-win'; text='Won'; sign='-'; } // Logic: Bet money is lost, but marked as Won
+
+       return `
+       <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; background:white;">
+          <div style="flex:1;">
+            <div style="font-weight:600;">${i.description}</div>
+            <div style="font-size:0.75rem; color:#888;">${toMMTime(i.timestamp)}</div>
+          </div>
+          <div style="text-align:right; display:flex; align-items:center; gap:10px;">
+             <div>
+                 <div style="font-weight:bold; color:${sign==='+'?'green':'black'};">${sign}${i.amount}</div>
+                 <div class="badge ${badgeClass}">${text}</div>
+             </div>
+             ${extraAction}
+          </div>
+       </div>`;
+    }).join('') : '<div style="padding:20px; text-align:center; color:#888;">မှတ်တမ်း မရှိပါ</div>';
 
     return layout(`
-    <h2>👮‍♂️ Admin Panel</h2>
-    ${msg ? `<div style="padding:10px; background:#d1e7dd; margin-bottom:10px;">${msg}</div>` : ''}
-    
-    <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
-        <div><b>Status:</b> <span class="badge" style="background:${gameStatus.isManuallyClosed?'red':'green'}; color:white;">${gameStatus.isManuallyClosed ? 'CLOSED' : 'OPEN'}</span></div>
-        <form method="POST" action="/admin/toggle_status"><button class="${gameStatus.isManuallyClosed ? 'secondary' : 'danger'}" style="width:auto;">${gameStatus.isManuallyClosed ? '🔓 ဖွင့်မည်' : '🔒 ပိတ်မည်'}</button></form>
-    </div>
+      <div style="background:var(--primary); padding:30px 20px; color:white; border-radius:0 0 20px 20px; text-align:center;"><div style="font-size:2rem; font-weight:bold;">${user.username}</div><div>လက်ကျန်ငွေ: ${user.balance.toLocaleString()} Ks</div></div>
+      ${msg ? `<div style="text-align:center; padding:10px; background:#e8f5e9; color:green; margin:10px;">${msg}</div>` : ''}
+      <div style="margin-top:-20px; padding:0 15px;">
+         <div style="display:flex; justify-content:space-between; align-items:center; margin:10px 5px;">
+             <h4>📜 မှတ်တမ်း</h4>
+             <form method="POST" action="/profile/clear"><button class="danger" class="btn-clear" onclick="triggerConfirm(event, 'Pending နဲ့ Win မှလွဲ၍ ကျန်သည်များ ဖျက်မည်')">🗑️ ရှင်းမည်</button></form>
+         </div>
+         <div class="card" style="padding:0; overflow:hidden; max-height:400px; overflow-y:auto;">${list}</div>
+         <div class="card"><h4>🔐 Password</h4><form method="POST" action="/profile/password"><input type="password" name="new_password" placeholder="New Pass" required><button class="secondary" onclick="triggerConfirm(event, 'Password ပြောင်းမည်')">ပြောင်းမည်</button></form></div>
+         <div style="text-align:center; margin-bottom:20px;"><form method="POST" action="/logout"><button class="danger" style="width:auto;" onclick="triggerConfirm(event, 'Logout လုပ်မည်')">Logout</button></form></div>
+      </div>
+    `, '/profile', true);
+}
 
-    ${winners.length > 0 ? `<div class="card" style="border:2px solid green;"><h3>🎉 Winners</h3><ul style="max-height:150px; overflow-y:auto;">${winners.map(w => `<li>${w}</li>`).join('')}</ul></div>` : ''}
-
-    <div class="card">
-        <h3>💰 ငွေစာရင်း</h3>
-        <label>User ရွေးပါ:</label>
-        <form method="POST" action="/admin/manage_money" style="margin-top:10px; border-bottom:1px solid #eee; padding-bottom:15px;">
-            <input type="hidden" name="action" value="topup">
-            <select name="username" required>${userOptions}</select>
-            <div class="grid-2">
-                <input name="amount" type="number" placeholder="Topup Amount" required>
-                <button type="submit" class="secondary" onclick="triggerConfirm(event, 'ငွေဖြည့်မည်')">ငွေဖြည့်</button>
-            </div>
-        </form>
-        <form method="POST" action="/admin/manage_money" style="margin-top:15px;">
-            <input type="hidden" name="action" value="withdraw">
-            <select name="username" required>${userOptions}</select>
-            <div class="grid-2">
-                <input name="amount" type="number" placeholder="Withdraw Amount" required>
-                <button type="submit" class="danger" onclick="triggerConfirm(event, 'ငွေထုတ်မည်')">ငွေထုတ်</button>
-            </div>
-        </form>
-    </div>
-    
-    <div class="card">
-        <h3>🏆 လျော်ကြေး</h3>
-        <form method="POST" action="/admin/payout">
-            <input name="number" placeholder="Win Num" required>
-            <select name="session"><option value="morning">Morning</option><option value="evening">Evening</option></select>
-            <button class="admin" onclick="triggerConfirm(event, 'လျော်ကြေးရှင်းမည်')">ရှင်းမည်</button>
-        </form>
-    </div>
-    `, '/admin', true); 
+// Admin (Same)
+export function adminPage(users: any[], winners: string[] = [], msg="", gameStatus: any) { 
+    const userOptions = users.map(u => `<option value="${u.username}">${u.username} (${u.balance} Ks)</option>`).join('');
+    return layout(`<h2>👮‍♂️ Admin Panel</h2>${msg?`<div style="padding:10px; background:#d1e7dd; margin-bottom:10px;">${msg}</div>`:''}<div class="card" style="display:flex; justify-content:space-between; align-items:center;"><div><b>Status:</b> <span class="badge" style="background:${gameStatus.isManuallyClosed?'red':'green'}; color:white;">${gameStatus.isManuallyClosed ? 'CLOSED' : 'OPEN'}</span></div><form method="POST" action="/admin/toggle_status"><button class="${gameStatus.isManuallyClosed ? 'secondary' : 'danger'}" style="width:auto;">${gameStatus.isManuallyClosed ? '🔓 ဖွင့်မည်' : '🔒 ပိတ်မည်'}</button></form></div>${winners.length > 0 ? `<div class="card" style="border:2px solid green;"><h3>🎉 Winners</h3><ul style="max-height:150px; overflow-y:auto;">${winners.map(w => `<li>${w}</li>`).join('')}</ul></div>` : ''}<div class="card"><h3>💰 ငွေစာရင်း</h3><label>User ရွေးပါ:</label><form method="POST" action="/admin/manage_money" style="margin-top:10px; border-bottom:1px solid #eee; padding-bottom:15px;"><input type="hidden" name="action" value="topup"><select name="username" required>${userOptions}</select><div class="grid-2"><input name="amount" type="number" placeholder="Topup Amount" required><button type="submit" class="secondary" onclick="triggerConfirm(event, 'ငွေဖြည့်မည်')">ငွေဖြည့်</button></div></form><form method="POST" action="/admin/manage_money" style="margin-top:15px;"><input type="hidden" name="action" value="withdraw"><select name="username" required>${userOptions}</select><div class="grid-2"><input name="amount" type="number" placeholder="Withdraw Amount" required><button type="submit" class="danger" onclick="triggerConfirm(event, 'ငွေထုတ်မည်')">ငွေထုတ်</button></div></form></div><div class="card"><h3>🏆 လျော်ကြေး</h3><form method="POST" action="/admin/payout"><input name="number" placeholder="Win Num" required><select name="session"><option value="morning">Morning</option><option value="evening">Evening</option></select><button class="admin" onclick="triggerConfirm(event, 'လျော်ကြေးရှင်းမည်')">ရှင်းမည်</button></form></div>`, '/admin', true); 
 }
 
 export function loginPage(e=""){return layout(`<div style="display:flex; height:100vh; align-items:center; justify-content:center; background:white;"><div style="width:85%;"><h2 style="color:var(--primary); text-align:center;">အကောင့်ဝင်ရန်</h2>${e?`<p style="color:red; text-align:center;">${e}</p>`:''}<form method="POST" action="/login"><input name="username" placeholder="အသုံးပြုသူအမည်" required><input type="password" name="password" placeholder="စကားဝှက်" required><button>ဝင်ရောက်မည်</button></form><br><div style="text-align:center;"><a href="/register" style="color:#666;">အကောင့်မရှိဘူးလား? <b>အကောင့်သစ်ဖွင့်ပါ</b></a></div></div></div>`, '/login');}
