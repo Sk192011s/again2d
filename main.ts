@@ -8,7 +8,6 @@ function getSessionId(req: Request) {
   return cookie?.split("session=")[1]?.split(";")[0];
 }
 
-// ... (generateNumbers function - Same as before) ...
 function generateNumbers(type: string, input1: string, input2: string): string[] {
   const nums = new Set<string>();
   if (type === "normal") {
@@ -43,9 +42,8 @@ function generateNumbers(type: string, input1: string, input2: string): string[]
   return Array.from(nums);
 }
 
-// ... (checkBettingStatus function - Same as before) ...
 async function checkBettingStatus(gameStatus: db.GameStatus) {
-    if (gameStatus.isManuallyClosed) return { allowed: false, msg: "ဒီနေ့ ပွဲပိတ်ထားပါသည်" };
+    if (gameStatus.isManuallyClosed) return { allowed: false, msg: "ဒီနေ့ ပွဲပိတ်ထားပါသည် (Holiday)" };
 
     const now = new Date();
     const mmTime = new Date(now.getTime() + (6.5 * 60 * 60 * 1000));
@@ -154,8 +152,6 @@ async function handler(req: Request): Promise<Response> {
 
   if(url.pathname.startsWith("/admin") && user.role === "admin") {
       const status = await db.getGameStatus();
-      
-      // *** FETCH ALL USERS HERE ***
       const allUsers = await db.getAllUsers(); 
 
       if(url.pathname === "/admin") return new Response(ui.adminPage(allUsers, [], "", status), {headers:{"content-type":"text/html"}});
