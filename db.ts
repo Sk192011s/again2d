@@ -40,6 +40,7 @@ export async function getGameStatus() {
   const mmTime = new Date(now.getTime() + (6.5 * 60 * 60 * 1000));
   const hours = mmTime.getUTCHours();
   
+  // Auto Switch Session based on time
   if (hours >= 12 && status.currentSession === 'morning') {
       status.currentSession = 'evening';
       status.isOpen = true; 
@@ -69,7 +70,6 @@ export async function getUser(username: string) {
   return res.value;
 }
 
-// ** New Function: Get All Users for Admin Dropdown **
 export async function getAllUsers() {
     const iter = kv.list<User>({ prefix: ["users"] });
     const users: User[] = [];
