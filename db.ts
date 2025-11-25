@@ -1,122 +1,134 @@
 // db.ts
 export const kv = await Deno.openKv();
 
-// User Data ပုံစံ
 export interface User {
   username: string;
-  password: string; // အစမ်းမို့လို့ ဒီအတိုင်းသိမ်းပါမယ်
+  password: string;
   balance: number;
   role: "admin" | "user";
-  session?: string; // Login ဝင်ထားလား စစ်ဖို့
+  session?: string;
 }
 
-// Bet Data ပုံစံ
-export interface Bet {
+// မှတ်တမ်းအမျိုးအစားများ (Bet = ထိုးကြေး, Topup = ငွေဖြည့်, Win = ပေါက်ကြေး)
+export interface HistoryItem {
   id: string;
-  username: string;
-  number: string;
+  type: "bet" | "topup" | "win"; 
+  description: string;
   amount: number;
-  status: "pending" | "won" | "lost";
   timestamp: number;
 }
 
-// 1. အကောင့်သစ်ဖွင့်ခြင်း
-export async function registerUser(username: string, password: string) {
-  const userRes = await kv.get(["users", username]);
-  if (userRes.value) return { success: false, msg: "ဒီနာမည်နဲ့ ရှိပြီးသားပါ" };
-
-  const newUser: User = {
-    username,
-    password,
-    balance: 0,
-    role: username === "admin" ? "admin" : "user", // username 'admin' ဆိုရင် Admin ပေးမယ်
-  };
-  await kv.set(["users", username], newUser);
-  return { success: true, msg: "အကောင့်ဖွင့်ပြီးပါပြီ" };
+// 1. Login & User Management
+export async function getUser(username: string) {
+  const res = await kv.get<User>(["users", username]);
+  return res.value;
 }
 
-// 2. Login ဝင်ခြင်း
-export async function loginUser(username: string, password: string) {
-  const userRes = await kv.get<User>(["users", username]);
-  const user = userRes.value;
+export async function registerUser(username: string, password: string) {
+  const existing = await getUser(username);
+  if (existing) return { success: false, msg: "User ရှိပြီးသားပါ" };
 
-  if (!user || user.password !== password) {
-    return { success: false, msg: "နာမည် (သို့) စကားဝှက် မှားနေပါသည်" };
-  }
+  const newUser: User = { username, password, balance: 0, role: username === "admin" ? "admin" : "user" };
+  await kv.set(["users", username], newUser);
+  return { success: true, msg: "Success" };
+}
+
+export async function loginUser(username: string, password: string) {
+  const user = await getUser(username);
+  if (!user || user.password !== password) return { success: false, msg: "မှားယွင်းနေပါသည်" };
 
   const session = crypto.randomUUID();
-  user.session = session;
-  await kv.set(["users", username], user);
-  await kv.set(["sessions", session], username); // Session သိမ်းခြင်း
-  
+  await kv.set(["users", username], { ...user, session });
+  await kv.set(["sessions", session], username);
   return { success: true, session };
 }
 
-// 3. Session စစ်ဆေးခြင်း (ဘယ်သူဝင်ထားလဲကြည့်တာ)
 export async function getUserBySession(session: string | null) {
   if (!session) return null;
   const usernameRes = await kv.get<string>(["sessions", session]);
   if (!usernameRes.value) return null;
-  
-  const userRes = await kv.get<User>(["users", usernameRes.value]);
-  return userRes.value;
+  return await getUser(usernameRes.value);
 }
 
-// 4. Logout ထွက်ခြင်း
 export async function logoutUser(session: string) {
   await kv.delete(["sessions", session]);
 }
 
-// 5. ဂဏန်းထိုးခြင်း
+export async function changePassword(username: string, newPass: string) {
+  const user = await getUser(username);
+  if(user) {
+    await kv.set(["users", username], { ...user, password: newPass });
+    return true;
+  }
+  return false;
+}
+
+// 2. Betting & Transactions with History
+export async function addHistory(username: string, type: "bet" | "topup" | "win", amount: number, desc: string) {
+  const id = crypto.randomUUID();
+  const item: HistoryItem = { id, type, amount, description: desc, timestamp: Date.now() };
+  // Store history: ["history", username, timestamp, id]
+  await kv.set(["history", username, Date.now(), id], item);
+}
+
 export async function placeBet(user: User, number: string, amount: number) {
-  if (user.balance < amount) return { success: false, msg: "လက်ကျန်ငွေ မလောက်ပါ" };
+  if (user.balance < amount) return { success: false, msg: "ငွေမလောက်ပါ" };
 
   const betId = crypto.randomUUID();
-  const bet: Bet = {
-    id: betId,
-    username: user.username,
-    number,
-    amount,
-    status: "pending",
-    timestamp: Date.now(),
-  };
+  const betData = { username: user.username, number, amount, status: "pending", timestamp: Date.now() };
 
   const res = await kv.atomic()
     .check({ key: ["users", user.username], versionstamp: (await kv.get(["users", user.username])).versionstamp })
     .set(["users", user.username], { ...user, balance: user.balance - amount })
-    .set(["bets", betId], bet)
+    .set(["bets", betId], betData) // For admin payout check
     .commit();
 
-  return res.ok ? { success: true } : { success: false, msg: "ထပ်မံကြိုးစားပါ" };
+  if (res.ok) {
+    // Add to user history separately (Non-blocking)
+    await addHistory(user.username, "bet", amount, `ထိုးကြေး: ${number}`);
+    return { success: true };
+  }
+  return { success: false, msg: "Error, Try Again" };
 }
 
-// 6. ဂဏန်းလျော်ခြင်း (Admin Only)
-// ဥပမာ - ၈၅ ထွက်တယ်၊ အဆ ၈၀ လျော်မယ်
-export async function processPayout(winningNumber: string, multiplier: number) {
-  const entries = kv.list<Bet>({ prefix: ["bets"] });
-  let winnersCount = 0;
+// 3. Admin Functions
+export async function topUpUser(username: string, amount: number) {
+  const user = await getUser(username);
+  if (!user) return false;
+  
+  await kv.set(["users", username], { ...user, balance: user.balance + amount });
+  await addHistory(username, "topup", amount, "Admin ငွေဖြည့်");
+  return true;
+}
 
+export async function processPayout(number: string, multiplier: number) {
+  const entries = kv.list({ prefix: ["bets"] });
+  let count = 0;
   for await (const entry of entries) {
-    const bet = entry.value;
+    const bet: any = entry.value;
     if (bet.status === "pending") {
-      if (bet.number === winningNumber) {
-        // ပေါက်တယ် -> ပိုက်ဆံထည့်ပေးမယ်
+      if (bet.number === number) {
         const winAmount = bet.amount * multiplier;
-        const userRes = await kv.get<User>(["users", bet.username]);
-        const user = userRes.value;
-        
+        const user = await getUser(bet.username);
         if (user) {
-          await kv.atomic()
-            .set(["users", user.username], { ...user, balance: user.balance + winAmount })
-            .set(entry.key, { ...bet, status: "won" })
-            .commit();
-          winnersCount++;
+          await kv.set(["users", user.username], { ...user, balance: user.balance + winAmount });
+          await addHistory(user.username, "win", winAmount, `ပေါက်ကြေး (${number})`);
+          await kv.delete(entry.key); // Clear bet to save space or mark as won
+          count++;
         }
       } else {
-        // မပေါက်ဘူး -> Lost ပြောင်းမယ်
-        await kv.set(entry.key, { ...bet, status: "lost" });
+         // Optionally delete lost bets to clean DB
+         await kv.delete(entry.key); 
       }
     }
   }
-  return winnersCount;
+  return count;
+}
+
+// 4. Fetch History (Pagination Logic)
+export async function getHistory(username: string, cursor: string = "", limit = 10) {
+  const iter = kv.list<HistoryItem>({ prefix: ["history", username] }, { limit, reverse: true, cursor: cursor || undefined });
+  const items: HistoryItem[] = [];
+  for await (const res of iter) items.push(res.value);
+  return { items, nextCursor: iter.cursor };
 }
