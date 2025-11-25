@@ -42,26 +42,14 @@ function generateNumbers(type: string, input1: string, input2: string): string[]
   return Array.from(nums);
 }
 
-// Updated Check Logic: Uses both GameStatus and Actual Time
 async function checkBettingStatus(gameStatus: db.GameStatus) {
-    // Note: db.getGameStatus() now auto-updates currentSession based on time if needed.
-    // So gameStatus.currentSession should be correct for the time of day.
-
     if (!gameStatus.isOpen) return { allowed: false, msg: "ပွဲပိတ်ထားပါသည် (Admin မဖွင့်သေးပါ)" };
-
     const now = new Date();
     const mmTime = new Date(now.getTime() + (6.5 * 60 * 60 * 1000));
     const totalMinutes = mmTime.getUTCHours() * 60 + mmTime.getUTCMinutes();
     
-    // Morning Deadline (11:45 = 705 mins)
-    if (gameStatus.currentSession === 'morning' && totalMinutes >= 705) {
-        return { allowed: false, msg: "မနက်ပိုင်း ပိတ်ချိန်ကျော်လွန်သွားပါပြီ (11:45 AM)" };
-    }
-    // Evening Deadline (15:45 = 945 mins)
-    if (gameStatus.currentSession === 'evening' && totalMinutes >= 945) {
-        return { allowed: false, msg: "ညနေပိုင်း ပိတ်ချိန်ကျော်လွန်သွားပါပြီ (3:45 PM)" };
-    }
-
+    if (gameStatus.currentSession === 'morning' && totalMinutes >= 705) return { allowed: false, msg: "မနက်ပိုင်း ပိတ်ချိန်ကျော်လွန်သွားပါပြီ (11:45 AM)" };
+    if (gameStatus.currentSession === 'evening' && totalMinutes >= 945) return { allowed: false, msg: "ညနေပိုင်း ပိတ်ချိန်ကျော်လွန်သွားပါပြီ (3:45 PM)" };
     return { allowed: true };
 }
 
@@ -83,7 +71,7 @@ async function handler(req: Request): Promise<Response> {
      if(req.method==="POST") {
         const form = await req.formData();
         const res = await db.registerUser(form.get("username") as string, form.get("password") as string);
-        if(res.success) return new Response(ui.loginPage("Success"), {headers:{"content-type":"text/html"}});
+        if(res.success) return new Response(ui.loginPage("အကောင့်ဖွင့်ပြီးပါပြီ။ ဝင်ရောက်ပါ။"), {headers:{"content-type":"text/html"}});
         return new Response(ui.registerPage(res.msg), {headers:{"content-type":"text/html"}});
      }
      return new Response(ui.registerPage(), {headers:{"content-type":"text/html"}});
@@ -96,7 +84,7 @@ async function handler(req: Request): Promise<Response> {
   if (!user) return new Response(null, {status:302, headers:{"location":"/login"}});
 
   if (url.pathname === "/") {
-     const status = await db.getGameStatus(); // This triggers auto-update logic in db.ts
+     const status = await db.getGameStatus();
      return new Response(ui.homePage(user, status), {headers:{"content-type":"text/html"}});
   }
 
@@ -114,7 +102,7 @@ async function handler(req: Request): Promise<Response> {
     const form = await req.formData();
     await db.changePassword(user.username, form.get("new_password") as string);
     const {items} = await db.getHistory(user.username, "", 50);
-    return new Response(ui.profilePage(user, items, "Password ပြောင်းလဲပြီးပါပြီ"), {headers:{"content-type":"text/html"}});
+    return new Response(ui.profilePage(user, items, "စကားဝှက် ပြောင်းလဲပြီးပါပြီ"), {headers:{"content-type":"text/html"}});
   }
 
   if (url.pathname === "/profile/clear" && req.method === "POST") {
@@ -126,14 +114,13 @@ async function handler(req: Request): Promise<Response> {
   if (url.pathname === "/bet" && req.method === "POST") {
      const status = await db.getGameStatus();
      const check = await checkBettingStatus(status);
-     
      if(!check.allowed) return new Response(ui.homePage(user, status, `❌ ${check.msg}`), {headers:{"content-type":"text/html"}});
 
      const form = await req.formData();
      const type = form.get("type") as string;
      const amount = Number(form.get("amount"));
 
-     if(amount < 100 || amount > 100000) return new Response(ui.homePage(user, status, "❌ Amount must be 100-100,000"), {headers:{"content-type":"text/html"}});
+     if(amount < 100 || amount > 100000) return new Response(ui.homePage(user, status, "❌ ပမာဏသည် 100 မှ 100,000 ကြား ဖြစ်ရမည်"), {headers:{"content-type":"text/html"}});
 
      let nums: string[] = [];
      if(type === 'break') nums = generateNumbers("break", form.get("digits") as string, "");
@@ -146,7 +133,7 @@ async function handler(req: Request): Promise<Response> {
      const totalCost = amount * nums.length;
      const currentUser = (await db.getUserBySession(session))!;
 
-     if(currentUser.balance < totalCost) return new Response(ui.homePage(user, status, `❌ လက်ကျန်ငွေ မလောက်ပါ (လိုငွေ: ${totalCost})`), {headers:{"content-type":"text/html"}});
+     if(currentUser.balance < totalCost) return new Response(ui.homePage(user, status, `❌ လက်ကျန်ငွေ မလောက်ပါ (လိုငွေ: ${totalCost} Ks)`), {headers:{"content-type":"text/html"}});
 
      const betList = [];
      for(const n of nums) {
@@ -162,15 +149,26 @@ async function handler(req: Request): Promise<Response> {
 
   if(url.pathname.startsWith("/admin") && user.role === "admin") {
       if(url.pathname === "/admin") return new Response(ui.adminPage(), {headers:{"content-type":"text/html"}});
-      if(url.pathname === "/admin/topup" && req.method==="POST") {
+      
+      // Topup & Withdraw
+      if(url.pathname === "/admin/manage_money" && req.method==="POST") {
           const f = await req.formData();
-          const ok = await db.topUpUser(f.get("username") as string, Number(f.get("amount")));
-          return new Response(ui.adminPage(ok?"Success":"Fail"), {headers:{"content-type":"text/html"}});
+          const target = f.get("username") as string;
+          const amt = Number(f.get("amount"));
+          const action = f.get("action");
+
+          let ok = false;
+          if(action === "topup") ok = await db.topUpUser(target, amt);
+          else if(action === "withdraw") ok = await db.withdrawUser(target, amt);
+
+          return new Response(ui.adminPage([], ok?`${action} Success`:"User not found or insufficient balance"), {headers:{"content-type":"text/html"}});
       }
+      
+      // Payout
       if(url.pathname === "/admin/payout" && req.method==="POST") {
           const f = await req.formData();
-          const count = await db.processPayout(f.get("number") as string, 80, f.get("session") as any);
-          return new Response(ui.adminPage(`Paid ${count} winners`), {headers:{"content-type":"text/html"}});
+          const winners = await db.processPayout(f.get("number") as string, 80, f.get("session") as any);
+          return new Response(ui.adminPage(winners, `လျော်ကြေးပေးချေပြီးပါပြီ။ (${winners.length} ဦး)`), {headers:{"content-type":"text/html"}});
       }
   }
 
