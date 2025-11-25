@@ -23,7 +23,6 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
           :root { --primary: #4e54c8; --secondary: #8f94fb; --accent: #ffb75e; --bg: #f3f4f6; }
           body { font-family: 'Poppins', sans-serif; margin: 0; padding: 0 0 70px 0; background: var(--bg); color: #333; }
           
-          /* Modern Card */
           .card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin: 15px; border: none; }
           .header-card { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; border-radius: 0 0 20px 20px; padding: 25px 20px; margin:0; box-shadow: 0 4px 10px rgba(78, 84, 200, 0.3); }
           
@@ -36,29 +35,25 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
           button.secondary { background: #11998e; }
           button.danger { background: #ff5f6d; }
           button.admin { background: #2c3e50; }
+          button.icon-btn { background: none; border: none; padding: 5px; box-shadow: none; font-size: 1.2rem; cursor: pointer; }
 
-          /* Bottom Nav */
           .bottom-nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 12px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 1000; border-top-left-radius: 20px; border-top-right-radius: 20px; }
           .nav-item { text-decoration: none; color: #999; text-align: center; font-size: 0.8rem; flex: 1; }
           .nav-item.active { color: var(--primary); font-weight: bold; }
           .nav-icon { font-size: 1.4rem; display: block; margin-bottom: 2px; }
 
-          /* Tabs */
           .chip-container { display: flex; gap: 10px; overflow-x: auto; padding: 5px 15px; scrollbar-width: none; }
           .chip { padding: 8px 16px; background: white; border-radius: 20px; white-space: nowrap; border: 1px solid #ddd; cursor: pointer; font-size: 0.9rem; transition: 0.3s; }
           .chip.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 2px 5px rgba(78,84,200,0.3); }
           .tab-content { display: none; animation: fadeIn 0.3s; }
           .tab-content.active { display: block; }
 
-          /* Utility */
           .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-          .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
           .badge { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; }
           .bg-pending { background: #fff8e1; color: #f57f17; }
           .bg-win { background: #e8f5e9; color: #2e7d32; }
           .bg-bet { background: #ffebee; color: #c62828; }
           
-          /* Loading */
           #loading { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); z-index:2000; align-items:center; justify-content:center; backdrop-filter: blur(5px); }
           .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -69,7 +64,6 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
         <div id="loading"><div class="spinner"></div></div>
         ${content}
         
-        <!-- Bottom Navigation -->
         ${isLoggedIn ? `
         <div class="bottom-nav">
           <a href="/" class="nav-item ${currentPath==='/'?'active':''}"><span class="nav-icon">🏠</span>ပင်မ</a>
@@ -78,8 +72,19 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
         </div>` : ''}
 
         <script>
-           // Loading & Tab Logic
-           document.querySelectorAll('a, form').forEach(el => el.onclick = () => { if(!el.href || !el.href.includes('#')) document.getElementById('loading').style.display = 'flex' });
+           // Fix: Only show loader for real links (not hash or javascript)
+           document.querySelectorAll('a').forEach(a => {
+               const href = a.getAttribute('href');
+               if(href && !href.startsWith('#') && !href.startsWith('javascript')) {
+                   a.onclick = () => document.getElementById('loading').style.display = 'flex';
+               }
+           });
+           
+           // Fix: Only show loader on Form Submit
+           document.querySelectorAll('form').forEach(f => {
+               f.onsubmit = () => document.getElementById('loading').style.display = 'flex';
+           });
+
            window.onpageshow = () => document.getElementById('loading').style.display = 'none';
 
            function openTab(id, btn) {
@@ -89,18 +94,20 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
                btn.classList.add('active');
            }
            
-           // Voucher DL
            function dlVoucher() {
                 html2canvas(document.getElementById("voucher-div")).then(c => {
                     let l = document.createElement("a"); l.download = "2d_voucher.png"; l.href = c.toDataURL(); l.click();
                 });
            }
            
-           // Confirm Modal Logic (Built-in Browser Confirm for Simplicity/Reliability on Mobile)
            function confirmBet(form) {
                const amt = form.querySelector('[name="amount"]').value;
                if(!amt) { alert("ပမာဏ ထည့်ပါ"); return false; }
                return confirm("ထိုးမှာ သေချာလား?");
+           }
+           
+           function confirmClear() {
+               return confirm("Pending (မထွက်သေးသော) စာရင်းများမှလွဲ၍ ကျန်မှတ်တမ်းများကို ရှင်းလင်းမည်။ သေချာပါသလား?");
            }
         </script>
       </body>
@@ -108,8 +115,8 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
   `;
 }
 
+// ... Home/Voucher/WinHistory (Same as before) ...
 export function homePage(user: any, gameStatus: any, msg = "") {
-  // Session Display Text
   const sessTxt = gameStatus.currentSession === 'morning' ? "☀️ မနက်ပိုင်း (12:00)" : "🌙 ညနေပိုင်း (4:30)";
   const statusColor = gameStatus.isOpen ? "#4caf50" : "#f44336";
   const statusTxt = gameStatus.isOpen ? "ဖွင့်သည်" : "ပိတ်ထားသည်";
@@ -162,7 +169,7 @@ export function homePage(user: any, gameStatus: any, msg = "") {
         </div>
     </div>
 
-    <!-- 2. Break (New Logic) -->
+    <!-- 2. Break -->
     <div id="tab-break" class="tab-content">
         <div class="card">
           <h4>⚡ အပယ် (Break) Logic</h4>
@@ -210,8 +217,6 @@ export function homePage(user: any, gameStatus: any, msg = "") {
           </form>
         </div>
     </div>
-
-    ${user.role === 'admin' ? '<div style="text-align:center; margin-bottom:20px;"><a href="/admin"><button class="admin" style="width:auto; padding:10px 30px;">Admin Panel</button></a></div>' : ''}
   `, '/', true);
 }
 
@@ -238,36 +243,6 @@ export function voucherPage(data: any) {
     `, '/');
 }
 
-export function profilePage(user: any, historyItems: any[]) {
-    // Simplified Profile for brevity - Focus on History
-    const list = historyItems.length ? historyItems.map(i => `
-       <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; background:white;">
-          <div>
-             <div style="font-weight:600; font-size:0.95rem;">${i.description}</div>
-             <div style="font-size:0.75rem; color:#888;">${toMMTime(i.timestamp)}</div>
-          </div>
-          <div class="badge ${i.type==='bet'?'bg-bet':(i.type==='win'?'bg-win':'bg-pending')}">
-             ${i.type==='bet'?'-':'+'}${i.amount}
-          </div>
-       </div>
-    `).join('') : '<div style="padding:20px; text-align:center; color:#888;">မှတ်တမ်း မရှိပါ</div>';
-
-    return layout(`
-      <div style="background:var(--primary); padding:30px 20px; color:white; border-radius:0 0 20px 20px; text-align:center;">
-          <div style="font-size:2rem; font-weight:bold;">${user.username}</div>
-          <div style="opacity:0.9;">လက်ကျန်ငွေ: ${user.balance} Ks</div>
-      </div>
-      <div style="margin-top:-20px; padding:0 15px;">
-         <div class="card" style="padding:0; overflow:hidden;">
-            ${list}
-         </div>
-         <div style="text-align:center; margin-bottom:20px;">
-             <form method="POST" action="/logout"><button class="danger" style="width:auto;">Logout</button></form>
-         </div>
-      </div>
-    `, '/profile', true);
-}
-
 export function winHistoryPage(results: any[]) {
     return layout(`
        <div class="header-card">
@@ -287,7 +262,58 @@ export function winHistoryPage(results: any[]) {
     `, '/results', true);
 }
 
-// ... Login/Admin (Minimal) ...
+// *** Updated Profile Page with Trash Icon & Password Change ***
+export function profilePage(user: any, historyItems: any[], msg="") {
+    const list = historyItems.length ? historyItems.map(i => `
+       <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; background:white;">
+          <div>
+             <div style="font-weight:600; font-size:0.95rem;">${i.description}</div>
+             <div style="font-size:0.75rem; color:#888;">${toMMTime(i.timestamp)}</div>
+          </div>
+          <div class="badge ${i.type==='bet'?'bg-bet':(i.type==='win'?'bg-win':'bg-pending')}">
+             ${i.type==='bet'?'-':'+'}${i.amount}
+          </div>
+       </div>
+    `).join('') : '<div style="padding:20px; text-align:center; color:#888;">မှတ်တမ်း မရှိပါ</div>';
+
+    return layout(`
+      <div style="background:var(--primary); padding:30px 20px; color:white; border-radius:0 0 20px 20px; text-align:center;">
+          <div style="font-size:2rem; font-weight:bold;">${user.username}</div>
+          <div style="opacity:0.9;">လက်ကျန်ငွေ: ${user.balance.toLocaleString()} Ks</div>
+      </div>
+      
+      ${msg ? `<div style="text-align:center; padding:10px; background:#e8f5e9; color:green; margin:10px;">${msg}</div>` : ''}
+
+      <div style="margin-top:-20px; padding:0 15px;">
+         
+         <!-- History Section -->
+         <div style="display:flex; justify-content:space-between; align-items:center; margin: 10px 5px;">
+             <h4 style="margin:0;">📜 မှတ်တမ်း</h4>
+             <form method="POST" action="/profile/clear" onsubmit="return confirmClear()">
+                 <button type="submit" class="icon-btn" title="ရှင်းလင်းမည်">🗑️ ရှင်းမည်</button>
+             </form>
+         </div>
+
+         <div class="card" style="padding:0; overflow:hidden; max-height:400px; overflow-y:auto;">
+            ${list}
+         </div>
+
+         <!-- Password Change -->
+         <div class="card">
+             <h4>🔐 Password ချိန်းရန်</h4>
+             <form method="POST" action="/profile/password">
+                 <input type="password" name="new_password" placeholder="Password အသစ်ရိုက်ပါ" required>
+                 <button type="submit" class="secondary">ပြောင်းမည်</button>
+             </form>
+         </div>
+
+         <div style="text-align:center; margin-bottom:20px;">
+             <form method="POST" action="/logout"><button class="danger" style="width:auto;">Logout</button></form>
+         </div>
+      </div>
+    `, '/profile', true);
+}
+
 export function loginPage(e=""){return layout(`<div style="display:flex; height:100vh; align-items:center; justify-content:center; background:white;"><div style="width:80%;"><h1 style="color:var(--primary);">Login</h1><form method="POST" action="/login"><input name="username" placeholder="User" required><input type="password" name="password" placeholder="Pass" required><button>Login</button></form><br><a href="/register">Register</a></div></div>`, '/login');}
 export function registerPage(e=""){return layout(`<div style="display:flex; height:100vh; align-items:center; justify-content:center; background:white;"><div style="width:80%;"><h1 style="color:var(--primary);">Register</h1><form method="POST" action="/register"><input name="username" placeholder="User" required><input type="password" name="password" placeholder="Pass" required><button>Register</button></form><br><a href="/login">Login</a></div></div>`, '/register');}
 export function adminPage(m="") { return layout(`<h2>Admin</h2>${m}<div class="card"><form method="POST" action="/admin/topup"><input name="username" placeholder="User"><input name="amount" placeholder="Amt"><button>Topup</button></form></div><div class="card"><form method="POST" action="/admin/payout"><input name="number" placeholder="Win Num"><select name="session"><option value="morning">Morning</option><option value="evening">Evening</option></select><button>Payout</button></form></div>`, '/admin', true); }
