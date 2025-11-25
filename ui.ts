@@ -29,10 +29,10 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
           input, select, button { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #e0e0e0; border-radius: 12px; box-sizing: border-box; font-size: 15px; outline: none; }
           input:focus { border-color: var(--primary); }
           
-          button { cursor: pointer; font-weight: 600; border: none; color: white; background: var(--primary); }
+          button { cursor: pointer; font-weight: 600; border: none; color: white; background: var(--primary); transition: 0.2s; }
+          button:active { transform: scale(0.98); }
           button.secondary { background: #11998e; }
           button.danger { background: #dc3545; }
-          button.warning { background: #ffc107; color: black; }
           button.admin { background: #2c3e50; }
 
           .bottom-nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 12px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 1000; border-top-left-radius: 20px; border-top-right-radius: 20px; }
@@ -54,6 +54,14 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
           .bg-topup { background: #cff4fc; color: #055160; }
           .bg-withdraw { background: #e2e3e5; color: #383d41; }
           
+          /* Custom Modal Styles */
+          .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 3000; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+          .modal-box { background: white; width: 85%; max-width: 350px; border-radius: 20px; padding: 25px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transform: scale(0.9); transition: transform 0.2s; }
+          .modal-box.open { transform: scale(1); }
+          .modal-title { font-size: 1.2rem; font-weight: bold; margin-bottom: 10px; color: var(--primary); }
+          .modal-details { background: #f8f9fa; padding: 15px; border-radius: 10px; margin: 15px 0; text-align: left; font-size: 0.9rem; border-left: 4px solid var(--primary); }
+          .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+          
           #loading { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); z-index:2000; align-items:center; justify-content:center; }
           .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -61,6 +69,21 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
       </head>
       <body>
         <div id="loading"><div class="spinner"></div></div>
+        
+        <!-- Custom Confirm Modal -->
+        <div id="confirmModal" class="modal-overlay">
+            <div class="modal-box" id="modalBox">
+                <div class="modal-title">❗ အတည်ပြုပါ</div>
+                <div class="modal-details" id="modalText">
+                    <!-- Details will go here -->
+                </div>
+                <div class="modal-actions">
+                    <button class="danger" onclick="closeModal()">မလုပ်တော့ပါ</button>
+                    <button class="secondary" onclick="proceedAction()">သေချာသည်</button>
+                </div>
+            </div>
+        </div>
+
         ${content}
         
         ${isLoggedIn ? `
@@ -71,7 +94,10 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
         </div>` : ''}
 
         <script>
-           // Simple Global Script
+           // Loader Logic
+           document.querySelectorAll('a:not([href^="#"]):not([href^="javascript"])').forEach(a => a.onclick = () => document.getElementById('loading').style.display = 'flex');
+           window.onpageshow = () => document.getElementById('loading').style.display = 'none';
+
            function openTab(id, btn) {
                document.querySelectorAll('.tab-content').forEach(d => d.classList.remove('active'));
                document.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
@@ -85,26 +111,60 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
                 });
            }
 
-           // Loading Logic
-           document.addEventListener('DOMContentLoaded', () => {
-              document.querySelectorAll('a:not([href^="#"]):not([href^="javascript"])').forEach(a => a.onclick = () => document.getElementById('loading').style.display = 'flex');
-              document.querySelectorAll('form').forEach(f => f.onsubmit = () => {
-                  // Only show loader if confirm passed (default behavior of form submit after return true)
-                  // So we check inside onsubmit attributes manually or just rely on delay
-                  document.getElementById('loading').style.display = 'flex';
-              });
-           });
-           window.onpageshow = () => document.getElementById('loading').style.display = 'none';
+           // --- NEW MODAL LOGIC ---
+           let pendingForm = null;
+
+           // Triggered by Form Buttons
+           function triggerConfirm(event, desc) {
+               event.preventDefault(); // Stop form
+               const form = event.target.closest('form');
+               
+               // Get Amount if exists
+               const amtInput = form.querySelector('[name="amount"]');
+               let detailText = desc || "လုပ်ဆောင်ချက်ကို အတည်ပြုပါ။";
+               
+               if(amtInput) {
+                   if(!amtInput.value) { alert("ပမာဏ ထည့်ပါ"); return false; }
+                   detailText += \`<br><br><b>ပမာဏ:</b> \${amtInput.value} Ks\`;
+                   
+                   // Try to find specific inputs for better description
+                   const num = form.querySelector('[name="number"]');
+                   if(num && num.value) detailText = \`<b>ထိုးမည့်ဂဏန်း:</b> \${num.value}\` + detailText;
+                   
+                   const digits = form.querySelector('[name="digits"]');
+                   if(digits && digits.value) detailText = \`<b>Break ဂဏန်း:</b> \${digits.value}\` + detailText;
+               }
+
+               pendingForm = form;
+               document.getElementById('modalText').innerHTML = detailText;
+               
+               const modal = document.getElementById('confirmModal');
+               modal.style.display = 'flex';
+               setTimeout(() => document.getElementById('modalBox').classList.add('open'), 10);
+           }
+
+           function closeModal() {
+               document.getElementById('modalBox').classList.remove('open');
+               setTimeout(() => {
+                   document.getElementById('confirmModal').style.display = 'none';
+                   pendingForm = null;
+               }, 200);
+           }
+
+           function proceedAction() {
+               if(pendingForm) {
+                   document.getElementById('loading').style.display = 'flex';
+                   pendingForm.submit();
+               }
+           }
         </script>
       </body>
     </html>
   `;
 }
 
-// 1. Home Page
 export function homePage(user: any, gameStatus: any, msg = "") {
   const sessTxt = gameStatus.currentSession === 'morning' ? "☀️ မနက်ပိုင်း (12:00)" : "🌙 ညနေပိုင်း (4:30)";
-  // If manually closed, show Red Status
   const isClosed = !gameStatus.isOpen || gameStatus.isManuallyClosed;
   const statusColor = isClosed ? "#f44336" : "#4caf50";
   const statusTxt = isClosed ? "ပိတ်ထားသည်" : "ဖွင့်သည်";
@@ -132,7 +192,6 @@ export function homePage(user: any, gameStatus: any, msg = "") {
         </div>
     </div>
 
-    <!-- We use inline onclick="return confirm(...)" for maximum reliability -->
     <div id="tab-2d" class="tab-content active">
         <div class="card">
           <h4>💎 ရိုးရိုးထိုး (R ပါ)</h4>
@@ -140,7 +199,7 @@ export function homePage(user: any, gameStatus: any, msg = "") {
             <input type="hidden" name="type" value="normal">
             <div class="grid-2"><input name="number" type="tel" maxlength="2" placeholder="ဂဏန်း" required><input name="amount" type="number" placeholder="ပမာဏ" required></div>
             <div style="margin:10px 0;"><input type="checkbox" name="r_bet" value="yes" style="width:auto"> R (အပြန်အလှန်)</div>
-            <button onclick="return confirm('ထိုးမှာ သေချာလား?')">ထိုးမည်</button>
+            <button onclick="triggerConfirm(event, '2D ရိုးရိုး ထိုးမည်။')">ထိုးမည်</button>
           </form>
         </div>
     </div>
@@ -152,7 +211,7 @@ export function homePage(user: any, gameStatus: any, msg = "") {
             <input type="hidden" name="type" value="break">
             <input name="digits" type="tel" maxlength="3" placeholder="ဂဏန်း ၃ လုံး (e.g. 538)" required style="text-align:center; letter-spacing:5px;">
             <input name="amount" type="number" placeholder="ပမာဏ" required>
-            <button class="secondary" onclick="return confirm('ထိုးမှာ သေချာလား?')">ထိုးမည်</button>
+            <button class="secondary" onclick="triggerConfirm(event, 'Break စနစ်ဖြင့် ထိုးမည်။')">ထိုးမည်</button>
           </form>
         </div>
     </div>
@@ -167,7 +226,7 @@ export function homePage(user: any, gameStatus: any, msg = "") {
                 <input name="digit" type="tel" maxlength="1" placeholder="ဂဏန်း" required>
             </div>
             <input name="amount" type="number" placeholder="ပမာဏ" required>
-            <button onclick="return confirm('ထိုးမှာ သေချာလား?')">ထိုးမည်</button>
+            <button onclick="triggerConfirm(event, 'လုံးစီး ထိုးမည်။')">ထိုးမည်</button>
           </form>
         </div>
     </div>
@@ -178,10 +237,10 @@ export function homePage(user: any, gameStatus: any, msg = "") {
           <form method="POST" action="/bet">
             <input type="hidden" name="type" value="shortcut">
             <div class="grid-2">
-               <button type="submit" name="set" value="double" class="secondary" style="background:#ffb75e; color:black;" onclick="return confirm('အပူး ထိုးမှာသေချာလား?')">အပူး</button>
-               <button type="submit" name="set" value="power" class="secondary" style="background:#8f94fb;" onclick="return confirm('ပါဝါ ထိုးမှာသေချာလား?')">ပါဝါ</button>
+               <button type="submit" name="set" value="double" class="secondary" style="background:#ffb75e; color:black;" onclick="triggerConfirm(event, 'အပူး (၁၀) ကွက် ထိုးမည်။')">အပူး</button>
+               <button type="submit" name="set" value="power" class="secondary" style="background:#8f94fb;" onclick="triggerConfirm(event, 'ပါဝါ (၁၀) ကွက် ထိုးမည်။')">ပါဝါ</button>
             </div>
-            <input name="amount" type="number" placeholder="ပမာဏ" required style="margin-top:10px;">
+            <input name="amount" type="number" placeholder="ပမာဏ (တစ်ကွက်လျှင်)" required style="margin-top:10px;">
           </form>
         </div>
     </div>
@@ -190,11 +249,9 @@ export function homePage(user: any, gameStatus: any, msg = "") {
   `, '/', true);
 }
 
-// 2. Profile Page (Enhanced History)
 export function profilePage(user: any, historyItems: any[], msg="") {
     const list = historyItems.length ? historyItems.map(i => {
        let badgeClass = 'bg-bet', text = '', sign = '-';
-       
        if (i.type === 'win') { badgeClass='bg-win'; text='Win'; sign='+'; }
        else if (i.type === 'topup') { badgeClass='bg-topup'; text='Deposit'; sign='+'; }
        else if (i.type === 'withdraw') { badgeClass='bg-withdraw'; text='Withdraw'; sign='-'; }
@@ -203,10 +260,7 @@ export function profilePage(user: any, historyItems: any[], msg="") {
 
        return `
        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; background:white;">
-          <div>
-            <div style="font-weight:600;">${i.description}</div>
-            <div style="font-size:0.75rem; color:#888;">${toMMTime(i.timestamp)}</div>
-          </div>
+          <div><div style="font-weight:600;">${i.description}</div><div style="font-size:0.75rem; color:#888;">${toMMTime(i.timestamp)}</div></div>
           <div style="text-align:right;">
              <div style="font-weight:bold; color:${sign==='+'?'green':'black'};">${sign}${i.amount}</div>
              <div class="badge ${badgeClass}">${text}</div>
@@ -224,7 +278,7 @@ export function profilePage(user: any, historyItems: any[], msg="") {
          <div style="display:flex; justify-content:space-between; align-items:center; margin:10px 5px;">
              <h4>📜 မှတ်တမ်း</h4>
              <form method="POST" action="/profile/clear">
-                 <button class="danger" style="padding:5px 10px; font-size:0.8rem;" onclick="return confirm('Pending မှလွဲ၍ ကျန်သည်များ ဖျက်မည်။ သေချာလား?')">🗑️ ရှင်းမည်</button>
+                 <button class="danger" style="padding:5px 10px; font-size:0.8rem;" onclick="triggerConfirm(event, 'Pending မှလွဲ၍ ကျန်သည်များ ဖျက်မည်။')">🗑️ ရှင်းမည်</button>
              </form>
          </div>
          <div class="card" style="padding:0; overflow:hidden; max-height:400px; overflow-y:auto;">${list}</div>
@@ -232,39 +286,28 @@ export function profilePage(user: any, historyItems: any[], msg="") {
              <h4>🔐 Password ပြောင်းရန်</h4>
              <form method="POST" action="/profile/password">
                  <input type="password" name="new_password" placeholder="စကားဝှက် အသစ်" required>
-                 <button class="secondary">ပြောင်းမည်</button>
+                 <button class="secondary" onclick="triggerConfirm(event, 'စကားဝှက် ပြောင်းမှာ သေချာလား?')">ပြောင်းမည်</button>
              </form>
          </div>
          <div style="text-align:center; margin-bottom:20px;">
-             <form method="POST" action="/logout"><button class="danger" style="width:auto;" onclick="return confirm('အကောင့်ထွက်မှာ သေချာလား?')">အကောင့်ထွက်မည်</button></form>
+             <form method="POST" action="/logout"><button class="danger" style="width:auto;" onclick="triggerConfirm(event, 'အကောင့်ထွက်မှာ သေချာလား?')">အကောင့်ထွက်မည်</button></form>
          </div>
       </div>
     `, '/profile', true);
 }
 
-// 3. Admin Page (Manual Toggle)
 export function adminPage(winners: string[] = [], msg="", gameStatus: any) { 
     return layout(`
     <h2>👮‍♂️ Admin Panel</h2>
     ${msg ? `<div style="padding:10px; background:#d1e7dd; margin-bottom:10px;">${msg}</div>` : ''}
     
-    <!-- Manual Close Toggle -->
     <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
-        <div>
-            <b>Market Status:</b> <span class="badge" style="font-size:1rem; background:${gameStatus.isManuallyClosed?'red':'green'}; color:white;">${gameStatus.isManuallyClosed ? 'CLOSED' : 'OPEN'}</span>
-        </div>
-        <form method="POST" action="/admin/toggle_status">
-            <button class="${gameStatus.isManuallyClosed ? 'secondary' : 'danger'}" style="width:auto;">
-                ${gameStatus.isManuallyClosed ? '🔓 ပွဲပြန်ဖွင့်မည်' : '🔒 ပွဲပိတ်မည်'}
-            </button>
-        </form>
+        <div><b>Status:</b> <span class="badge" style="background:${gameStatus.isManuallyClosed?'red':'green'}; color:white;">${gameStatus.isManuallyClosed ? 'CLOSED' : 'OPEN'}</span></div>
+        <form method="POST" action="/admin/toggle_status"><button class="${gameStatus.isManuallyClosed ? 'secondary' : 'danger'}" style="width:auto;">${gameStatus.isManuallyClosed ? '🔓 ဖွင့်မည်' : '🔒 ပိတ်မည်'}</button></form>
     </div>
 
     ${winners.length > 0 ? `
-    <div class="card" style="border:2px solid green;">
-        <h3>🎉 ယခုပေါက်သူများ (${winners.length})</h3>
-        <ul style="max-height:150px; overflow-y:auto;">${winners.map(w => `<li>${w}</li>`).join('')}</ul>
-    </div>` : ''}
+    <div class="card" style="border:2px solid green;"><h3>🎉 Winners</h3><ul style="max-height:150px; overflow-y:auto;">${winners.map(w => `<li>${w}</li>`).join('')}</ul></div>` : ''}
 
     <div class="card">
         <h3>💰 ငွေစာရင်း</h3>
@@ -272,18 +315,18 @@ export function adminPage(winners: string[] = [], msg="", gameStatus: any) {
             <input name="username" placeholder="Username" required>
             <input name="amount" type="number" placeholder="Amount" required>
             <div class="grid-2">
-                <button type="submit" name="action" value="topup" class="secondary" onclick="return confirm('ငွေဖြည့်မှာ သေချာလား?')">ငွေဖြည့်</button>
-                <button type="submit" name="action" value="withdraw" class="danger" onclick="return confirm('ငွေထုတ်မှာ သေချာလား?')">ငွေထုတ်</button>
+                <button type="submit" name="action" value="topup" class="secondary" onclick="triggerConfirm(event, 'ငွေဖြည့်မည်')">ငွေဖြည့်</button>
+                <button type="submit" name="action" value="withdraw" class="danger" onclick="triggerConfirm(event, 'ငွေထုတ်မည်')">ငွေထုတ်</button>
             </div>
         </form>
     </div>
     
     <div class="card">
-        <h3>🏆 လျော်ကြေး (Payout)</h3>
+        <h3>🏆 လျော်ကြေး</h3>
         <form method="POST" action="/admin/payout">
-            <input name="number" placeholder="ထွက်ဂဏန်း (e.g. 55)" required>
+            <input name="number" placeholder="Win Num" required>
             <select name="session"><option value="morning">Morning</option><option value="evening">Evening</option></select>
-            <button class="admin" onclick="return confirm('လျော်ကြေးရှင်းမှာ သေချာလား?')">ရှင်းမည်</button>
+            <button class="admin" onclick="triggerConfirm(event, 'လျော်ကြေးရှင်းမည်')">ရှင်းမည်</button>
         </form>
     </div>
     `, '/admin', true); 
