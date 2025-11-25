@@ -35,7 +35,10 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
           button.secondary { background: #11998e; }
           button.danger { background: #ff5f6d; }
           button.admin { background: #2c3e50; }
-          button.icon-btn { background: none; border: none; padding: 5px; box-shadow: none; font-size: 1.2rem; cursor: pointer; }
+          
+          /* New Style for Clear Button */
+          .btn-clear { background: #dc3545; color: white; padding: 6px 15px; border-radius: 8px; font-size: 0.85rem; border: none; cursor: pointer; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 5px rgba(220, 53, 69, 0.3); }
+          .btn-clear:active { transform: scale(0.95); }
 
           .bottom-nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 12px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 1000; border-top-left-radius: 20px; border-top-right-radius: 20px; }
           .nav-item { text-decoration: none; color: #999; text-align: center; font-size: 0.8rem; flex: 1; }
@@ -49,10 +52,13 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
           .tab-content.active { display: block; }
 
           .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+          
+          /* Badge Colors */
           .badge { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; }
-          .bg-pending { background: #fff8e1; color: #f57f17; }
-          .bg-win { background: #e8f5e9; color: #2e7d32; }
-          .bg-bet { background: #ffebee; color: #c62828; }
+          .bg-pending { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+          .bg-win { background: #d1e7dd; color: #0f5132; }
+          .bg-bet { background: #f8d7da; color: #842029; }
+          .bg-topup { background: #cff4fc; color: #055160; }
           
           #loading { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); z-index:2000; align-items:center; justify-content:center; backdrop-filter: blur(5px); }
           .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
@@ -72,7 +78,6 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
         </div>` : ''}
 
         <script>
-           // Fix: Only show loader for real links (not hash or javascript)
            document.querySelectorAll('a').forEach(a => {
                const href = a.getAttribute('href');
                if(href && !href.startsWith('#') && !href.startsWith('javascript')) {
@@ -80,7 +85,6 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
                }
            });
            
-           // Fix: Only show loader on Form Submit
            document.querySelectorAll('form').forEach(f => {
                f.onsubmit = () => document.getElementById('loading').style.display = 'flex';
            });
@@ -262,19 +266,38 @@ export function winHistoryPage(results: any[]) {
     `, '/results', true);
 }
 
-// *** Updated Profile Page with Trash Icon & Password Change ***
+// *** Updated Profile with Pending Badge & Clear Button ***
 export function profilePage(user: any, historyItems: any[], msg="") {
-    const list = historyItems.length ? historyItems.map(i => `
+    const list = historyItems.length ? historyItems.map(i => {
+       // Logic for Badge: If type is bet and status is pending -> Show Yellow Pending Badge
+       // If type is win -> Show Green Win
+       // If type is topup -> Show Blue Topup
+       let badgeClass = 'bg-bet';
+       let badgeText = `-${i.amount}`;
+       
+       if (i.type === 'win') {
+           badgeClass = 'bg-win';
+           badgeText = `+${i.amount}`;
+       } else if (i.type === 'topup') {
+           badgeClass = 'bg-topup';
+           badgeText = `+${i.amount}`;
+       } else if (i.type === 'bet' && i.status === 'pending') {
+           badgeClass = 'bg-pending';
+           badgeText = 'Pending';
+       }
+
+       return `
        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; background:white;">
           <div>
              <div style="font-weight:600; font-size:0.95rem;">${i.description}</div>
              <div style="font-size:0.75rem; color:#888;">${toMMTime(i.timestamp)}</div>
           </div>
-          <div class="badge ${i.type==='bet'?'bg-bet':(i.type==='win'?'bg-win':'bg-pending')}">
-             ${i.type==='bet'?'-':'+'}${i.amount}
+          <div style="text-align:right;">
+             <div style="font-weight:bold; font-size:0.9rem;">${i.type==='bet' ? '-'+i.amount : '+'+i.amount}</div>
+             <div class="badge ${badgeClass}">${badgeText === 'Pending' ? 'Pending' : (i.type === 'bet' ? 'Bet' : 'Success')}</div>
           </div>
        </div>
-    `).join('') : '<div style="padding:20px; text-align:center; color:#888;">မှတ်တမ်း မရှိပါ</div>';
+    `}).join('') : '<div style="padding:20px; text-align:center; color:#888;">မှတ်တမ်း မရှိပါ</div>';
 
     return layout(`
       <div style="background:var(--primary); padding:30px 20px; color:white; border-radius:0 0 20px 20px; text-align:center;">
@@ -286,11 +309,13 @@ export function profilePage(user: any, historyItems: any[], msg="") {
 
       <div style="margin-top:-20px; padding:0 15px;">
          
-         <!-- History Section -->
+         <!-- History Section Header -->
          <div style="display:flex; justify-content:space-between; align-items:center; margin: 10px 5px;">
              <h4 style="margin:0;">📜 မှတ်တမ်း</h4>
              <form method="POST" action="/profile/clear" onsubmit="return confirmClear()">
-                 <button type="submit" class="icon-btn" title="ရှင်းလင်းမည်">🗑️ ရှင်းမည်</button>
+                 <button type="submit" class="btn-clear">
+                    <span>🗑️</span> ရှင်းမည်
+                 </button>
              </form>
          </div>
 
