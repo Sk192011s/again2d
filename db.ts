@@ -31,20 +31,41 @@ export interface GameStatus {
   lastUpdated: number;
 }
 
-// --- Game Status ---
+// --- Game Status & Auto Switch ---
 export async function getGameStatus() {
   const res = await kv.get<GameStatus>(["game_status"]);
-  if (!res.value) {
-    return { currentSession: "morning", isOpen: true, lastUpdated: Date.now() };
+  
+  // Default Initial State
+  let status = res.value || { currentSession: "morning", isOpen: true, lastUpdated: Date.now() };
+
+  // **Auto Session Switch Logic**
+  const now = new Date();
+  const mmTime = new Date(now.getTime() + (6.5 * 60 * 60 * 1000));
+  const hours = mmTime.getUTCHours();
+  
+  // 12:00 PM ကျော်တာနဲ့ Evening ကို အော်တိုပြောင်းမယ် (Admin မပြောင်းလည်း)
+  if (hours >= 12 && status.currentSession === 'morning') {
+      status.currentSession = 'evening';
+      status.isOpen = true; // ညနေပိုင်းအတွက် ဖွင့်ပေးမယ်
+      await kv.set(["game_status"], status);
   }
-  return res.value;
+  
+  // နောက်ရက်မနက် (ည ၁၂ ကျော်) ရောက်ရင် Morning ပြန်ပြောင်းမယ်
+  if (hours < 12 && status.currentSession === 'evening') {
+       // Check date difference if needed, but simple hour check is usually enough for daily cycle
+       status.currentSession = 'morning';
+       status.isOpen = true;
+       await kv.set(["game_status"], status);
+  }
+
+  return status;
 }
 
 export async function setGameStatus(status: GameStatus) {
   await kv.set(["game_status"], status);
 }
 
-// --- User ---
+// --- User Functions ---
 export async function getUser(username: string) {
   const res = await kv.get<User>(["users", username]);
   return res.value;
@@ -99,11 +120,10 @@ export async function addHistory(username: string, type: "bet" | "topup" | "win"
   await kv.set(["history", username, Date.now(), id], item);
 }
 
-// *** New Feature: Clear History (Except Pending) ***
 export async function clearUserHistory(username: string) {
     const iter = kv.list<HistoryItem>({ prefix: ["history", username] });
     for await (const res of iter) {
-        // Only delete if NOT pending
+        // Pending မဟုတ်တာမှန်သမျှ ဖျက်မယ်
         if (res.value.status !== 'pending') {
             await kv.delete(res.key);
         }
@@ -158,6 +178,7 @@ export async function processPayout(number: string, multiplier: number, sessionT
     const bet: any = entry.value;
     const betHour = new Date(bet.timestamp + mmOffset).getUTCHours();
     
+    // Check match based on Time of Bet (Independent of current session state)
     let isMatchSession = false;
     if (sessionType === "morning" && betHour < 12) isMatchSession = true;
     if (sessionType === "evening" && betHour >= 12) isMatchSession = true;
@@ -168,40 +189,29 @@ export async function processPayout(number: string, multiplier: number, sessionT
         const user = await getUser(bet.username);
         if (user) {
           await kv.set(["users", user.username], { ...user, balance: user.balance + winAmount });
+          // Update: Add WIN history (User sees this separately)
           await addHistory(user.username, "win", winAmount, `ထီပေါက်သည် (${number})`, "won");
+          // Remove Bet
           await kv.delete(entry.key); 
           count++;
         }
       } else {
-         // Lost -> We delete from 'bets' table (active bets), but 'history' table (logs) keeps the record
-         // Ideally we should update history status to 'lost', but for simplicity we rely on 'pending' not being cleared
-         // OR we can add a 'lost' entry. 
-         // Let's just delete the bet. The history item remains as "pending" or we can update it.
-         // Updating history key is hard. So we just leave it. 
-         // BUT: for "Clear History" to work, we need to know it's not pending anymore.
-         // Simpler Approach: When Payout runs, we don't touch History status for losers in this simple DB design.
-         // User clears history -> We delete all except pending. 
-         // Since the Bet is deleted from "bets" table, it is technically "finished". 
-         // But the history item says "pending". 
-         // For this code: We will just allow deleting everything in history except what we explicitly mark pending?
-         // Actually, let's just delete the active bet entry. 
-         // Improved Logic:
-         // Update: To make "Clear History" effective, we need to mark history items as "lost".
-         // But `history` uses timestamp in key. Hard to find specific bet.
-         // Sol: We just delete the active bet. The history log remains.
+         // Lost -> Delete active bet
          await kv.delete(entry.key); 
       }
     }
   }
 
   await addWinResult(number, sessionType);
-  const nextSession = sessionType === "morning" ? "evening" : "morning";
-  await setGameStatus({ currentSession: nextSession, isOpen: true, lastUpdated: Date.now() });
+  // Do not force toggle if time already auto-toggled, just ensure open.
+  // Actually, let's just make sure it's open.
+  const currentStatus = await getGameStatus();
+  await setGameStatus({ ...currentStatus, isOpen: true, lastUpdated: Date.now() });
 
   return count;
 }
 
-export async function getHistory(username: string, cursor: string = "", limit = 20) {
+export async function getHistory(username: string, cursor: string = "", limit = 50) {
   const iter = kv.list<HistoryItem>({ prefix: ["history", username] }, { limit, reverse: true, cursor: cursor || undefined });
   const items: HistoryItem[] = [];
   for await (const res of iter) items.push(res.value);
