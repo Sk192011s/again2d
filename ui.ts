@@ -1,5 +1,4 @@
 // ui.ts
-// ... (Previous imports and functions remain same) ...
 function toMMTime(timestamp: number) {
     const date = new Date(timestamp + (6.5 * 60 * 60 * 1000));
     let hours = date.getUTCHours();
@@ -30,10 +29,13 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
           input, select, button { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #e0e0e0; border-radius: 12px; box-sizing: border-box; font-size: 15px; outline: none; }
           input:focus, select:focus { border-color: var(--primary); }
           
-          button { cursor: pointer; font-weight: 600; border: none; color: white; background: var(--primary); }
+          button { cursor: pointer; font-weight: 600; border: none; color: white; background: var(--primary); transition: 0.2s; }
+          button:active { transform: scale(0.98); }
           button.secondary { background: #11998e; }
           button.danger { background: #dc3545; }
           button.admin { background: #2c3e50; }
+          
+          .btn-clear { background: #dc3545; color: white; padding: 6px 15px; border-radius: 8px; font-size: 0.85rem; border: none; cursor: pointer; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 5px rgba(220, 53, 69, 0.3); }
 
           .bottom-nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 12px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 1000; border-top-left-radius: 20px; border-top-right-radius: 20px; }
           .nav-item { text-decoration: none; color: #999; text-align: center; font-size: 0.8rem; flex: 1; }
@@ -54,7 +56,7 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
           .bg-topup { background: #cff4fc; color: #055160; }
           .bg-withdraw { background: #e2e3e5; color: #383d41; }
 
-           /* Modal Styles */
+          /* Modal */
           .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 3000; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
           .modal-box { background: white; width: 85%; max-width: 350px; border-radius: 20px; padding: 25px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transform: scale(0.9); transition: transform 0.2s; }
           .modal-box.open { transform: scale(1); }
@@ -70,7 +72,6 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
       <body>
         <div id="loading"><div class="spinner"></div></div>
 
-        <!-- Custom Confirm Modal -->
         <div id="confirmModal" class="modal-overlay">
             <div class="modal-box" id="modalBox">
                 <div class="modal-title">❗ အတည်ပြုပါ</div>
@@ -108,19 +109,16 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
                 });
            }
 
-           // Modal Logic
            let pendingForm = null;
            function triggerConfirm(event, desc) {
                event.preventDefault(); 
                const form = event.target.closest('form');
-               
-               // Optional: Check amounts if needed
                const amtInput = form.querySelector('[name="amount"]');
                if(amtInput && !amtInput.value) { alert("ပမာဏ ထည့်ပါ"); return false; }
 
                let detailText = desc || "လုပ်ဆောင်ချက်ကို အတည်ပြုပါ။";
                
-               // Add Name detail for admin topup
+               // For Admin Forms
                const userInput = form.querySelector('[name="username"]');
                if(userInput && userInput.tagName === 'SELECT') {
                    const selectedUser = userInput.options[userInput.selectedIndex].text;
@@ -157,7 +155,6 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
 
 // ... Home, Profile, Login pages remain same ...
 export function homePage(user: any, gameStatus: any, msg = "") {
-  // ... (Same as before)
   const sessTxt = gameStatus.currentSession === 'morning' ? "☀️ မနက်ပိုင်း (12:00)" : "🌙 ညနေပိုင်း (4:30)";
   const isClosed = !gameStatus.isOpen || gameStatus.isManuallyClosed;
   const statusColor = isClosed ? "#f44336" : "#4caf50";
@@ -186,19 +183,8 @@ export function homePage(user: any, gameStatus: any, msg = "") {
         </div>
     </div>
 
-    <div id="tab-2d" class="tab-content active">
-        <div class="card">
-          <h4>💎 ရိုးရိုးထိုး (R ပါ)</h4>
-          <form method="POST" action="/bet">
-            <input type="hidden" name="type" value="normal">
-            <div class="grid-2"><input name="number" type="tel" maxlength="2" placeholder="ဂဏန်း" required><input name="amount" type="number" placeholder="ပမာဏ" required></div>
-            <div style="margin:10px 0;"><input type="checkbox" name="r_bet" value="yes" style="width:auto"> R (အပြန်အလှန်)</div>
-            <button onclick="triggerConfirm(event, '2D ရိုးရိုး ထိုးမည်။')">ထိုးမည်</button>
-          </form>
-        </div>
-    </div>
-    <!-- ... Other Tabs ... -->
-    <div id="tab-break" class="tab-content"><div class="card"><h4>⚡ Break</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="break"><input name="digits" type="tel" maxlength="3" placeholder="ဂဏန်း ၃ လုံး" required style="text-align:center; letter-spacing:5px;"><input name="amount" type="number" placeholder="ပမာဏ" required><button class="secondary" onclick="triggerConfirm(event, 'Break ထိုးမည်။')">ထိုးမည်</button></form></div></div>
+    <div id="tab-2d" class="tab-content active"><div class="card"><h4>💎 ရိုးရိုးထိုး (R ပါ)</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="normal"><div class="grid-2"><input name="number" type="tel" maxlength="2" placeholder="ဂဏန်း" required><input name="amount" type="number" placeholder="ပမာဏ" required></div><div style="margin:10px 0;"><input type="checkbox" name="r_bet" value="yes" style="width:auto"> R (အပြန်အလှန်)</div><button onclick="triggerConfirm(event, '2D ရိုးရိုး ထိုးမည်။')">ထိုးမည်</button></form></div></div>
+    <div id="tab-break" class="tab-content"><div class="card"><h4>⚡ Break</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="break"><input name="digits" type="tel" maxlength="3" placeholder="ဂဏန်း ၃ လုံး (e.g. 538)" required style="text-align:center; letter-spacing:5px;"><input name="amount" type="number" placeholder="ပမာဏ" required><button class="secondary" onclick="triggerConfirm(event, 'Break ထိုးမည်။')">ထိုးမည်</button></form></div></div>
     <div id="tab-ht" class="tab-content"><div class="card"><h4>🔢 လုံးစီး</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="head_tail"><div class="grid-2"><select name="position"><option value="head">ထိပ်စီး</option><option value="tail">နောက်ပိတ်</option></select><input name="digit" type="tel" maxlength="1" placeholder="ဂဏန်း" required></div><input name="amount" type="number" placeholder="ပမာဏ" required><button onclick="triggerConfirm(event, 'လုံးစီး ထိုးမည်။')">ထိုးမည်</button></form></div></div>
     <div id="tab-short" class="tab-content"><div class="card"><h4>🚀 Shortcut</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="shortcut"><div class="grid-2"><button type="submit" name="set" value="double" class="secondary" style="background:#ffb75e; color:black;" onclick="triggerConfirm(event, 'အပူး ထိုးမည်')">အပူး</button><button type="submit" name="set" value="power" class="secondary" style="background:#8f94fb;" onclick="triggerConfirm(event, 'ပါဝါ ထိုးမည်')">ပါဝါ</button></div><input name="amount" type="number" placeholder="ပမာဏ" required style="margin-top:10px;"></form></div></div>
     
@@ -206,7 +192,6 @@ export function homePage(user: any, gameStatus: any, msg = "") {
   `, '/', true);
 }
 
-// ... Profile Page same ...
 export function profilePage(user: any, historyItems: any[], msg="") {
     const list = historyItems.length ? historyItems.map(i => {
        let badgeClass='bg-bet',text='',sign='-';
@@ -216,12 +201,11 @@ export function profilePage(user: any, historyItems: any[], msg="") {
        else if(i.status==='pending'){badgeClass='bg-pending';text='Pending';sign='-';}
        return `<div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; background:white;"><div><div style="font-weight:600;">${i.description}</div><div style="font-size:0.75rem; color:#888;">${toMMTime(i.timestamp)}</div></div><div style="text-align:right;"><div style="font-weight:bold; color:${sign==='+'?'green':'black'};">${sign}${i.amount}</div><div class="badge ${badgeClass}">${text}</div></div></div>`;
     }).join('') : '<div style="padding:20px; text-align:center; color:#888;">မှတ်တမ်း မရှိပါ</div>';
-    return layout(`<div style="background:var(--primary); padding:30px 20px; color:white; border-radius:0 0 20px 20px; text-align:center;"><div style="font-size:2rem; font-weight:bold;">${user.username}</div><div>လက်ကျန်ငွေ: ${user.balance.toLocaleString()} Ks</div></div>${msg?`<div style="text-align:center; padding:10px; background:#e8f5e9; color:green; margin:10px;">${msg}</div>`:''}<div style="margin-top:-20px; padding:0 15px;"><div style="display:flex; justify-content:space-between; align-items:center; margin:10px 5px;"><h4>📜 မှတ်တမ်း</h4><form method="POST" action="/profile/clear"><button class="danger" style="padding:5px 10px; font-size:0.8rem;" onclick="triggerConfirm(event, 'Pending မှလွဲ၍ ကျန်သည်များ ဖျက်မည်')">🗑️ ရှင်းမည်</button></form></div><div class="card" style="padding:0; overflow:hidden; max-height:400px; overflow-y:auto;">${list}</div><div class="card"><h4>🔐 Password</h4><form method="POST" action="/profile/password"><input type="password" name="new_password" placeholder="New Pass" required><button class="secondary" onclick="triggerConfirm(event, 'Password ပြောင်းမည်')">ပြောင်းမည်</button></form></div><div style="text-align:center; margin-bottom:20px;"><form method="POST" action="/logout"><button class="danger" style="width:auto;" onclick="triggerConfirm(event, 'Logout လုပ်မည်')">Logout</button></form></div></div>`, '/profile', true);
+    return layout(`<div style="background:var(--primary); padding:30px 20px; color:white; border-radius:0 0 20px 20px; text-align:center;"><div style="font-size:2rem; font-weight:bold;">${user.username}</div><div>လက်ကျန်ငွေ: ${user.balance.toLocaleString()} Ks</div></div>${msg?`<div style="text-align:center; padding:10px; background:#e8f5e9; color:green; margin:10px;">${msg}</div>`:''}<div style="margin-top:-20px; padding:0 15px;"><div style="display:flex; justify-content:space-between; align-items:center; margin:10px 5px;"><h4>📜 မှတ်တမ်း</h4><form method="POST" action="/profile/clear"><button class="danger" class="btn-clear" onclick="triggerConfirm(event, 'Pending မှလွဲ၍ ကျန်သည်များ ဖျက်မည်')">🗑️ ရှင်းမည်</button></form></div><div class="card" style="padding:0; overflow:hidden; max-height:400px; overflow-y:auto;">${list}</div><div class="card"><h4>🔐 Password</h4><form method="POST" action="/profile/password"><input type="password" name="new_password" placeholder="New Pass" required><button class="secondary" onclick="triggerConfirm(event, 'Password ပြောင်းမည်')">ပြောင်းမည်</button></form></div><div style="text-align:center; margin-bottom:20px;"><form method="POST" action="/logout"><button class="danger" style="width:auto;" onclick="triggerConfirm(event, 'Logout လုပ်မည်')">Logout</button></form></div></div>`, '/profile', true);
 }
 
-// ** Updated Admin Page with User Dropdown **
+// ** Updated Admin Page: Split Forms for Topup & Withdraw **
 export function adminPage(users: any[], winners: string[] = [], msg="", gameStatus: any) { 
-    // Create Select Options for Users
     const userOptions = users.map(u => `<option value="${u.username}">${u.username} (${u.balance} Ks)</option>`).join('');
 
     return layout(`
@@ -237,16 +221,25 @@ export function adminPage(users: any[], winners: string[] = [], msg="", gameStat
 
     <div class="card">
         <h3>💰 ငွေစာရင်း</h3>
-        <form method="POST" action="/admin/manage_money">
-            <!-- User Dropdown instead of Text Input -->
-            <label>User ရွေးပါ:</label>
-            <select name="username" required>
-                ${userOptions}
-            </select>
-            <input name="amount" type="number" placeholder="Amount" required>
+        <label>User ရွေးပါ:</label>
+        
+        <!-- Topup Form -->
+        <form method="POST" action="/admin/manage_money" style="margin-top:10px; border-bottom:1px solid #eee; padding-bottom:15px;">
+            <input type="hidden" name="action" value="topup">
+            <select name="username" required>${userOptions}</select>
             <div class="grid-2">
-                <button type="submit" name="action" value="topup" class="secondary" onclick="triggerConfirm(event, 'ငွေဖြည့်မည်')">ငွေဖြည့်</button>
-                <button type="submit" name="action" value="withdraw" class="danger" onclick="triggerConfirm(event, 'ငွေထုတ်မည်')">ငွေထုတ်</button>
+                <input name="amount" type="number" placeholder="Topup Amount" required>
+                <button type="submit" class="secondary" onclick="triggerConfirm(event, 'ငွေဖြည့်မည်')">ငွေဖြည့်</button>
+            </div>
+        </form>
+
+        <!-- Withdraw Form -->
+        <form method="POST" action="/admin/manage_money" style="margin-top:15px;">
+            <input type="hidden" name="action" value="withdraw">
+            <select name="username" required>${userOptions}</select>
+            <div class="grid-2">
+                <input name="amount" type="number" placeholder="Withdraw Amount" required>
+                <button type="submit" class="danger" onclick="triggerConfirm(event, 'ငွေထုတ်မည်')">ငွေထုတ်</button>
             </div>
         </form>
     </div>
