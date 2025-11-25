@@ -42,14 +42,24 @@ function generateNumbers(type: string, input1: string, input2: string): string[]
   return Array.from(nums);
 }
 
+// Logic: Check Manual Close first, then Time Limits
 async function checkBettingStatus(gameStatus: db.GameStatus) {
-    if (!gameStatus.isOpen) return { allowed: false, msg: "ပွဲပိတ်ထားပါသည် (Admin မဖွင့်သေးပါ)" };
+    // 1. Check if Admin manually closed the market (e.g. Holidays)
+    if (gameStatus.isManuallyClosed) {
+        return { allowed: false, msg: "ဒီနေ့ ပွဲပိတ်ထားပါသည် (Holiday)" };
+    }
+
+    // 2. Check Time Limits
     const now = new Date();
     const mmTime = new Date(now.getTime() + (6.5 * 60 * 60 * 1000));
     const totalMinutes = mmTime.getUTCHours() * 60 + mmTime.getUTCMinutes();
     
     if (gameStatus.currentSession === 'morning' && totalMinutes >= 705) return { allowed: false, msg: "မနက်ပိုင်း ပိတ်ချိန်ကျော်လွန်သွားပါပြီ (11:45 AM)" };
     if (gameStatus.currentSession === 'evening' && totalMinutes >= 945) return { allowed: false, msg: "ညနေပိုင်း ပိတ်ချိန်ကျော်လွန်သွားပါပြီ (3:45 PM)" };
+
+    // 3. Check System Open (Payout related)
+    if (!gameStatus.isOpen) return { allowed: false, msg: "ခေတ္တပိတ်ထားပါသည် (Admin Payout မလုပ်ရသေးပါ)" };
+
     return { allowed: true };
 }
 
@@ -148,9 +158,10 @@ async function handler(req: Request): Promise<Response> {
   }
 
   if(url.pathname.startsWith("/admin") && user.role === "admin") {
-      if(url.pathname === "/admin") return new Response(ui.adminPage(), {headers:{"content-type":"text/html"}});
+      const status = await db.getGameStatus(); // fetch for admin view
+
+      if(url.pathname === "/admin") return new Response(ui.adminPage([], "", status), {headers:{"content-type":"text/html"}});
       
-      // Topup & Withdraw
       if(url.pathname === "/admin/manage_money" && req.method==="POST") {
           const f = await req.formData();
           const target = f.get("username") as string;
@@ -161,14 +172,20 @@ async function handler(req: Request): Promise<Response> {
           if(action === "topup") ok = await db.topUpUser(target, amt);
           else if(action === "withdraw") ok = await db.withdrawUser(target, amt);
 
-          return new Response(ui.adminPage([], ok?`${action} Success`:"User not found or insufficient balance"), {headers:{"content-type":"text/html"}});
+          return new Response(ui.adminPage([], ok?`${action} Success`:"Failed", status), {headers:{"content-type":"text/html"}});
       }
       
-      // Payout
       if(url.pathname === "/admin/payout" && req.method==="POST") {
           const f = await req.formData();
           const winners = await db.processPayout(f.get("number") as string, 80, f.get("session") as any);
-          return new Response(ui.adminPage(winners, `လျော်ကြေးပေးချေပြီးပါပြီ။ (${winners.length} ဦး)`), {headers:{"content-type":"text/html"}});
+          return new Response(ui.adminPage(winners, `Payout Done (${winners.length} winners)`, status), {headers:{"content-type":"text/html"}});
+      }
+
+      // New: Manual Toggle Route
+      if(url.pathname === "/admin/toggle_status" && req.method==="POST") {
+          const current = await db.getGameStatus();
+          const newStatus = await db.toggleManualStatus(!current.isManuallyClosed);
+          return new Response(ui.adminPage([], `Market is now ${newStatus.isManuallyClosed ? 'CLOSED' : 'OPEN'}`, newStatus), {headers:{"content-type":"text/html"}});
       }
   }
 
