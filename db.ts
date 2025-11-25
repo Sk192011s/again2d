@@ -15,6 +15,14 @@ export interface HistoryItem {
   description: string;
   amount: number;
   timestamp: number;
+  status?: "pending" | "won" | "lost"; // Status ထပ်တိုးထားသည်
+}
+
+export interface WinResult {
+  date: string;
+  session: "morning" | "evening";
+  number: string;
+  timestamp: number;
 }
 
 // --- User Management ---
@@ -26,7 +34,6 @@ export async function getUser(username: string) {
 export async function registerUser(username: string, password: string) {
   const existing = await getUser(username);
   if (existing) return { success: false, msg: "ဒီအမည်နှင့် ရှိပြီးသားဖြစ်သည်" };
-
   const newUser: User = { username, password, balance: 0, role: username === "admin" ? "admin" : "user" };
   await kv.set(["users", username], newUser);
   return { success: true, msg: "Success" };
@@ -35,7 +42,6 @@ export async function registerUser(username: string, password: string) {
 export async function loginUser(username: string, password: string) {
   const user = await getUser(username);
   if (!user || user.password !== password) return { success: false, msg: "အမည် (သို့) စကားဝှက် မှားယွင်းနေသည်" };
-
   const session = crypto.randomUUID();
   await kv.set(["users", username], { ...user, session });
   await kv.set(["sessions", session], username);
@@ -53,17 +59,12 @@ export async function logoutUser(session: string) {
   await kv.delete(["sessions", session]);
 }
 
-// User Password ကို ကိုယ်တိုင်ချိန်းခြင်း
 export async function changePassword(username: string, newPass: string) {
   const user = await getUser(username);
-  if(user) {
-    await kv.set(["users", username], { ...user, password: newPass });
-    return true;
-  }
+  if(user) { await kv.set(["users", username], { ...user, password: newPass }); return true; }
   return false;
 }
 
-// Admin က Password Reset လုပ်ပေးခြင်း
 export async function adminResetPassword(username: string, newPass: string) {
   const user = await getUser(username);
   if (!user) return false;
@@ -71,10 +72,24 @@ export async function adminResetPassword(username: string, newPass: string) {
   return true;
 }
 
-// --- Betting & Transaction Logic ---
-export async function addHistory(username: string, type: "bet" | "topup" | "win", amount: number, desc: string) {
+// --- Betting & Transactions ---
+export async function addHistory(username: string, type: "bet" | "topup" | "win", amount: number, desc: string, status: "pending"|"won"|"lost" = "won") {
   const id = crypto.randomUUID();
-  const item: HistoryItem = { id, type, amount, description: desc, timestamp: Date.now() };
+  // Bet type ဆိုရင် default status က pending ဖြစ်မယ်
+  const finalStatus = type === 'bet' ? 'pending' : status;
+  const item: HistoryItem = { id, type, amount, description: desc, timestamp: Date.now(), status: finalStatus };
+  
+  // Betting History ကို Key တစ်မျိုးနဲ့သိမ်းမယ် (Status Update လုပ်လို့ရအောင်)
+  if(type === 'bet') {
+      // For bets, we might need to update status later, but for simplicity in this key-value design, 
+      // we will rely on the "bets" table for processing and "history" for display. 
+      // To show "pending" in history, we save it here. 
+      // Real-time status update in history list requires re-fetching or complex indexing.
+      // For this simple version: We save as pending. When user checks history, we might need to cross-check with 'bets' table?
+      // No, simpler way: When Payout happens, we add a NEW history item "Win". 
+      // The old "Bet" item stays as record of expenditure. 
+      // So 'status' in history item is static.
+  }
   await kv.set(["history", username, Date.now(), id], item);
 }
 
@@ -91,46 +106,43 @@ export async function placeBet(user: User, number: string, amount: number) {
     .commit();
 
   if (res.ok) {
-    await addHistory(user.username, "bet", amount, `ထိုးကြေး: ${number}`);
+    await addHistory(user.username, "bet", amount, `ထိုးဂဏန်း: ${number}`, "pending");
     return { success: true };
   }
-  return { success: false, msg: "Error, Try Again" };
+  return { success: false, msg: "Error" };
 }
 
 export async function topUpUser(username: string, amount: number) {
   const user = await getUser(username);
   if (!user) return false;
-  
   await kv.set(["users", username], { ...user, balance: user.balance + amount });
-  await addHistory(username, "topup", amount, "Admin ငွေဖြည့်");
+  await addHistory(username, "topup", amount, "Admin ငွေဖြည့်", "won");
   return true;
 }
 
-// Payout with Session Logic (Morning / Evening)
+// --- Payout & Results ---
+export async function addWinResult(number: string, session: "morning" | "evening") {
+    // Save public result
+    const result: WinResult = { date: new Date().toISOString().split('T')[0], session, number, timestamp: Date.now() };
+    await kv.set(["results", Date.now()], result);
+}
+
+export async function getWinResults(limit = 10) {
+    const iter = kv.list<WinResult>({ prefix: ["results"] }, { limit, reverse: true });
+    const items = [];
+    for await (const res of iter) items.push(res.value);
+    return items;
+}
+
 export async function processPayout(number: string, multiplier: number, sessionType: "morning" | "evening") {
   const entries = kv.list({ prefix: ["bets"] });
   let count = 0;
   
-  // Myanmar Time Calculation
-  const now = new Date();
-  const utcTime = now.getTime();
+  // Myanmar Time Offset Check
   const mmOffset = 6.5 * 60 * 60 * 1000; 
-  const mmDate = new Date(utcTime + mmOffset);
-  
-  // Create boundary for today 12:00 PM Myanmar Time
-  const midDay = new Date(mmDate);
-  midDay.setUTCHours(12, 0, 0, 0); 
-  // Note: Since we adjusted MM time manually, we treat standard Date methods as MM time roughly for day boundary
-  // But strictly comparing timestamps is safer.
-  
-  // Simplest Logic: 
-  // If Morning Payout selected -> Process bets where hour < 12
-  // If Evening Payout selected -> Process bets where hour >= 12
   
   for await (const entry of entries) {
     const bet: any = entry.value;
-    
-    // Convert Bet Timestamp to MM Time Hour
     const betDateMM = new Date(bet.timestamp + mmOffset);
     const betHour = betDateMM.getUTCHours();
     
@@ -144,16 +156,20 @@ export async function processPayout(number: string, multiplier: number, sessionT
         const user = await getUser(bet.username);
         if (user) {
           await kv.set(["users", user.username], { ...user, balance: user.balance + winAmount });
-          await addHistory(user.username, "win", winAmount, `ပေါက်ကြေး (${number}) - ${sessionType === 'morning' ? 'မနက်' : 'ညနေ'}`);
+          await addHistory(user.username, "win", winAmount, `ထီပေါက်သည် (${number})`, "won");
           await kv.delete(entry.key); 
           count++;
         }
       } else {
-         // Lost
+         // Lost - Just delete pending bet to clean up, or mark as lost if you want rigorous tracking
          await kv.delete(entry.key); 
       }
     }
   }
+
+  // Save the winning number to public history
+  await addWinResult(number, sessionType);
+  
   return count;
 }
 
