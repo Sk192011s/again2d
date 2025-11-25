@@ -20,50 +20,45 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
         <style>
-          :root { --primary: #4e54c8; --secondary: #8f94fb; --accent: #ffb75e; --bg: #f3f4f6; }
+          :root { --primary: #4e54c8; --secondary: #8f94fb; --bg: #f3f4f6; }
           body { font-family: 'Poppins', sans-serif; margin: 0; padding: 0 0 70px 0; background: var(--bg); color: #333; }
           
           .card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin: 15px; border: none; }
-          .header-card { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; border-radius: 0 0 20px 20px; padding: 25px 20px; margin:0; box-shadow: 0 4px 10px rgba(78, 84, 200, 0.3); }
+          .header-card { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; border-radius: 0 0 20px 20px; padding: 25px 20px; margin:0; }
           
-          h2, h3, h4 { margin: 0 0 10px 0; font-weight: 600; }
-          input, select, button { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #e0e0e0; border-radius: 12px; box-sizing: border-box; font-size: 15px; outline: none; transition: 0.3s; }
-          input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(78,84,200,0.1); }
+          input, select, button { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #e0e0e0; border-radius: 12px; box-sizing: border-box; font-size: 15px; outline: none; }
+          input:focus { border-color: var(--primary); }
           
-          button { cursor: pointer; font-weight: 600; border: none; color: white; background: var(--primary); box-shadow: 0 4px 6px rgba(78,84,200,0.2); }
-          button:active { transform: scale(0.97); }
+          button { cursor: pointer; font-weight: 600; border: none; color: white; background: var(--primary); }
           button.secondary { background: #11998e; }
-          button.danger { background: #ff5f6d; }
+          button.danger { background: #dc3545; }
           button.admin { background: #2c3e50; }
-          
-          /* New Style for Clear Button */
-          .btn-clear { background: #dc3545; color: white; padding: 6px 15px; border-radius: 8px; font-size: 0.85rem; border: none; cursor: pointer; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 5px rgba(220, 53, 69, 0.3); }
-          .btn-clear:active { transform: scale(0.95); }
 
+          /* Bottom Nav */
           .bottom-nav { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 12px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 1000; border-top-left-radius: 20px; border-top-right-radius: 20px; }
           .nav-item { text-decoration: none; color: #999; text-align: center; font-size: 0.8rem; flex: 1; }
           .nav-item.active { color: var(--primary); font-weight: bold; }
           .nav-icon { font-size: 1.4rem; display: block; margin-bottom: 2px; }
 
-          .chip-container { display: flex; gap: 10px; overflow-x: auto; padding: 5px 15px; scrollbar-width: none; }
-          .chip { padding: 8px 16px; background: white; border-radius: 20px; white-space: nowrap; border: 1px solid #ddd; cursor: pointer; font-size: 0.9rem; transition: 0.3s; }
-          .chip.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 2px 5px rgba(78,84,200,0.3); }
-          .tab-content { display: none; animation: fadeIn 0.3s; }
+          /* Tabs & Utilities */
+          .chip-container { display: flex; gap: 10px; overflow-x: auto; padding: 5px 15px; }
+          .chip { padding: 8px 16px; background: white; border-radius: 20px; white-space: nowrap; border: 1px solid #ddd; cursor: pointer; }
+          .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+          .tab-content { display: none; }
           .tab-content.active { display: block; }
-
           .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
           
-          /* Badge Colors */
+          /* Status Badges */
           .badge { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; }
-          .bg-pending { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+          .bg-pending { background: #fff3cd; color: #856404; }
           .bg-win { background: #d1e7dd; color: #0f5132; }
           .bg-bet { background: #f8d7da; color: #842029; }
           .bg-topup { background: #cff4fc; color: #055160; }
+          .bg-withdraw { background: #e2e3e5; color: #383d41; }
           
-          #loading { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); z-index:2000; align-items:center; justify-content:center; backdrop-filter: blur(5px); }
+          #loading { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); z-index:2000; align-items:center; justify-content:center; }
           .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-          @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         </style>
       </head>
       <body>
@@ -78,17 +73,9 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
         </div>` : ''}
 
         <script>
-           document.querySelectorAll('a').forEach(a => {
-               const href = a.getAttribute('href');
-               if(href && !href.startsWith('#') && !href.startsWith('javascript')) {
-                   a.onclick = () => document.getElementById('loading').style.display = 'flex';
-               }
-           });
-           
-           document.querySelectorAll('form').forEach(f => {
-               f.onsubmit = () => document.getElementById('loading').style.display = 'flex';
-           });
-
+           // Loading for Links & Forms
+           document.querySelectorAll('a:not([href^="#"]):not([href^="javascript"])').forEach(a => a.onclick = () => document.getElementById('loading').style.display = 'flex');
+           document.querySelectorAll('form').forEach(f => f.onsubmit = () => document.getElementById('loading').style.display = 'flex');
            window.onpageshow = () => document.getElementById('loading').style.display = 'none';
 
            function openTab(id, btn) {
@@ -104,14 +91,21 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
                 });
            }
            
-           function confirmBet(form) {
-               const amt = form.querySelector('[name="amount"]').value;
-               if(!amt) { alert("ပမာဏ ထည့်ပါ"); return false; }
-               return confirm("ထိုးမှာ သေချာလား?");
+           // Fixed Confirm Function
+           function checkConfirm(event, msg) {
+               if(!confirm(msg)) {
+                   event.preventDefault();
+                   document.getElementById('loading').style.display = 'none'; // hide loader if canceled
+                   return false;
+               }
+               return true;
            }
-           
-           function confirmClear() {
-               return confirm("Pending (မထွက်သေးသော) စာရင်းများမှလွဲ၍ ကျန်မှတ်တမ်းများကို ရှင်းလင်းမည်။ သေချာပါသလား?");
+
+           function confirmBet(event) {
+               const form = event.target;
+               const amt = form.querySelector('[name="amount"]').value;
+               if(!amt) { alert("ပမာဏ ထည့်ပါ"); event.preventDefault(); return false; }
+               return checkConfirm(event, "ထိုးမှာ သေချာလား?");
            }
         </script>
       </body>
@@ -119,7 +113,7 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
   `;
 }
 
-// ... Home/Voucher/WinHistory (Same as before) ...
+// 1. Home Page
 export function homePage(user: any, gameStatus: any, msg = "") {
   const sessTxt = gameStatus.currentSession === 'morning' ? "☀️ မနက်ပိုင်း (12:00)" : "🌙 ညနေပိုင်း (4:30)";
   const statusColor = gameStatus.isOpen ? "#4caf50" : "#f44336";
@@ -128,217 +122,167 @@ export function homePage(user: any, gameStatus: any, msg = "") {
   return layout(`
     <div class="header-card">
        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <h3 style="margin:0; font-weight:300;">မင်္ဂလာပါ,</h3>
-            <h2 style="margin:0;">${user.username}</h2>
-          </div>
-          <div style="text-align:right;">
-             <div style="font-size:0.8rem; opacity:0.9;">လက်ကျန်ငွေ</div>
-             <div style="font-size:1.4rem; font-weight:bold;">${user.balance.toLocaleString()} Ks</div>
-          </div>
+          <div><h3 style="margin:0;">မင်္ဂလာပါ,</h3><h2 style="margin:0;">${user.username}</h2></div>
+          <div style="text-align:right;"><div style="opacity:0.9;">လက်ကျန်ငွေ</div><div style="font-size:1.4rem; font-weight:bold;">${user.balance.toLocaleString()} Ks</div></div>
        </div>
-       <div style="margin-top:15px; background:rgba(255,255,255,0.15); padding:10px; border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:0.9rem;">${sessTxt}</span>
-          <span style="background:white; color:${statusColor}; padding:3px 10px; border-radius:20px; font-size:0.8rem; font-weight:bold;">● ${statusTxt}</span>
+       <div style="margin-top:15px; background:rgba(255,255,255,0.15); padding:10px; border-radius:10px; display:flex; justify-content:space-between;">
+          <span>${sessTxt}</span>
+          <span style="background:white; color:${statusColor}; padding:2px 10px; border-radius:10px; font-weight:bold;">● ${statusTxt}</span>
        </div>
     </div>
     
-    ${msg ? `<div style="margin:15px; padding:15px; background:${msg.includes('❌')?'#ffebee':'#e8f5e9'}; border-radius:10px; text-align:center; color:#333;">${msg}</div>` : ''}
+    ${msg ? `<div style="margin:15px; padding:15px; background:${msg.includes('❌')?'#ffebee':'#e8f5e9'}; border-radius:10px; text-align:center;">${msg}</div>` : ''}
 
     <div style="margin-top:10px;">
         <div class="chip-container">
-            <div class="chip active" onclick="openTab('tab-2d', this)">💎 2D ထိုး</div>
-            <div class="chip" onclick="openTab('tab-break', this)">⚡ အပယ် (Break)</div>
+            <div class="chip active" onclick="openTab('tab-2d', this)">💎 2D</div>
+            <div class="chip" onclick="openTab('tab-break', this)">⚡ Break</div>
             <div class="chip" onclick="openTab('tab-ht', this)">🔢 လုံးစီး</div>
             <div class="chip" onclick="openTab('tab-short', this)">🚀 Shortcut</div>
         </div>
     </div>
 
-    <!-- 1. Normal 2D -->
     <div id="tab-2d" class="tab-content active">
         <div class="card">
           <h4>💎 ရိုးရိုးထိုး (R ပါ)</h4>
-          <form method="POST" action="/bet" onsubmit="return confirmBet(this)">
+          <form method="POST" action="/bet" onsubmit="return confirmBet(event)">
             <input type="hidden" name="type" value="normal">
-            <div class="grid-2">
-                <input name="number" type="tel" maxlength="2" placeholder="ဂဏန်း (e.g. 55)" required>
-                <input name="amount" type="number" placeholder="ပမာဏ" required>
-            </div>
-            <div style="margin:10px 0; display:flex; align-items:center; gap:10px;">
-                <input type="checkbox" name="r_bet" value="yes" style="width:20px; height:20px; margin:0;">
-                <label>R (အပြန်အလှန်)</label>
-            </div>
-            <button type="submit">ထိုးမည်</button>
+            <div class="grid-2"><input name="number" type="tel" maxlength="2" placeholder="ဂဏန်း" required><input name="amount" type="number" placeholder="ပမာဏ" required></div>
+            <div style="margin:10px 0;"><input type="checkbox" name="r_bet" value="yes" style="width:auto"> R (အပြန်အလှန်)</div>
+            <button>ထိုးမည်</button>
           </form>
         </div>
     </div>
 
-    <!-- 2. Break -->
     <div id="tab-break" class="tab-content">
         <div class="card">
-          <h4>⚡ အပယ် (Break) Logic</h4>
-          <p style="font-size:0.8rem; color:#666;">ဂဏန်း (၃) လုံးရိုက်ထည့်ပါ။ ထိုဂဏန်းများ အချင်းချင်းတွဲခြင်း နှင့် အပူးများကို ပယ်ပြီး ကျန်တွဲလုံးများကို R ဖြင့် ထိုးပေးပါမည်။</p>
-          <form method="POST" action="/bet" onsubmit="return confirmBet(this)">
+          <h4>⚡ အပယ် (Break)</h4>
+          <form method="POST" action="/bet" onsubmit="return confirmBet(event)">
             <input type="hidden" name="type" value="break">
-            <label>ဂဏန်း (၃) လုံး (ဥပမာ: 538)</label>
-            <input name="digits" type="tel" maxlength="3" placeholder="538" required style="letter-spacing:5px; font-weight:bold; text-align:center;">
-            <input name="amount" type="number" placeholder="တစ်ကွက်လျှင် ထိုးကြေး" required>
-            <button type="submit" class="secondary">တွက်ချက်ပြီး ထိုးမည်</button>
+            <input name="digits" type="tel" maxlength="3" placeholder="ဂဏန်း ၃ လုံး (e.g. 538)" required style="text-align:center; letter-spacing:5px;">
+            <input name="amount" type="number" placeholder="ပမာဏ" required>
+            <button class="secondary">ထိုးမည်</button>
           </form>
         </div>
     </div>
 
-    <!-- 3. Head/Tail -->
     <div id="tab-ht" class="tab-content">
         <div class="card">
-          <h4>🔢 လုံးစီး (၁၀ ကွက်)</h4>
-          <form method="POST" action="/bet" onsubmit="return confirmBet(this)">
+          <h4>🔢 လုံးစီး</h4>
+          <form method="POST" action="/bet" onsubmit="return confirmBet(event)">
             <input type="hidden" name="type" value="head_tail">
             <div class="grid-2">
-                <select name="position">
-                    <option value="head">ထိပ်စီး</option>
-                    <option value="tail">နောက်ပိတ်</option>
-                </select>
-                <input name="digit" type="tel" maxlength="1" placeholder="ဂဏန်း (0-9)" required>
+                <select name="position"><option value="head">ထိပ်စီး</option><option value="tail">နောက်ပိတ်</option></select>
+                <input name="digit" type="tel" maxlength="1" placeholder="ဂဏန်း" required>
             </div>
-            <input name="amount" type="number" placeholder="တစ်ကွက်လျှင် ထိုးကြေး" required>
-            <button type="submit">ထိုးမည်</button>
+            <input name="amount" type="number" placeholder="ပမာဏ" required>
+            <button>ထိုးမည်</button>
           </form>
         </div>
     </div>
 
-    <!-- 4. Shortcut -->
     <div id="tab-short" class="tab-content">
         <div class="card">
           <h4>🚀 အမြန်ထိုး</h4>
-          <form method="POST" action="/bet" onsubmit="return confirmBet(this)">
+          <form method="POST" action="/bet" onsubmit="return confirmBet(event)">
             <input type="hidden" name="type" value="shortcut">
             <div class="grid-2">
-               <button type="submit" name="set" value="double" class="secondary" style="background:#ffb75e; color:black;">အပူး (၁၀) ကွက်</button>
-               <button type="submit" name="set" value="power" class="secondary" style="background:#8f94fb;">ပါဝါ (၁၀) ကွက်</button>
+               <button type="submit" name="set" value="double" class="secondary" style="background:#ffb75e; color:black;">အပူး</button>
+               <button type="submit" name="set" value="power" class="secondary" style="background:#8f94fb;">ပါဝါ</button>
             </div>
-            <input name="amount" type="number" placeholder="တစ်ကွက်လျှင် ထိုးကြေး" required style="margin-top:15px;">
+            <input name="amount" type="number" placeholder="ပမာဏ" required style="margin-top:10px;">
           </form>
         </div>
     </div>
+    
+    ${user.role==='admin' ? '<div style="text-align:center;"><a href="/admin"><button class="admin" style="width:auto; padding:10px 30px;">Admin Panel</button></a></div>' : ''}
   `, '/', true);
 }
 
-export function voucherPage(data: any) {
-    return layout(`
-    <div class="card" style="text-align:center;">
-        <div style="font-size:3rem;">✅</div>
-        <h2>အောင်မြင်ပါသည်</h2>
-        <div id="voucher-div" style="background:#fffde7; padding:20px; border:1px dashed #aaa; margin:15px 0; text-align:left; font-family:monospace; position:relative;">
-             <div style="text-align:center; font-weight:bold; border-bottom:1px solid #ddd; padding-bottom:5px; margin-bottom:5px;">2D VOUCHER</div>
-             <div><strong>Name:</strong> ${data.username}</div>
-             <div><strong>Time:</strong> ${toMMTime(Date.now())}</div>
-             <hr style="border:0; border-top:1px dashed #ccc;">
-             <div style="display:flex; flex-wrap:wrap; gap:5px;">
-                 ${data.bets.map((b:any) => `<span style="background:white; border:1px solid #ddd; padding:2px 5px; border-radius:3px;">${b.num}-${b.amt}</span>`).join('')}
-             </div>
-             <hr style="border:0; border-top:1px dashed #ccc;">
-             <div style="text-align:right; font-size:1.2rem; font-weight:bold;">Total: ${data.total} Ks</div>
-        </div>
-        <button onclick="dlVoucher()" class="secondary">📥 Save Image</button>
-        <br><br>
-        <a href="/"><button>နောက်တစ်ခု ထပ်ထိုးမည်</button></a>
-    </div>
-    `, '/');
-}
-
-export function winHistoryPage(results: any[]) {
-    return layout(`
-       <div class="header-card">
-           <h2>🏆 ထွက်ဂဏန်းများ</h2>
-       </div>
-       <div style="padding:15px;">
-          ${results.map(r => `
-             <div class="card" style="display:flex; justify-content:space-between; align-items:center; margin:0 0 10px 0;">
-                 <div>
-                    <div style="font-weight:bold;">${r.date}</div>
-                    <div class="badge" style="background:#eee;">${r.session==='morning'?'☀️ Morning':'🌙 Evening'}</div>
-                 </div>
-                 <div style="font-size:2rem; font-weight:bold; color:var(--primary);">${r.number}</div>
-             </div>
-          `).join('')}
-       </div>
-    `, '/results', true);
-}
-
-// *** Updated Profile with Pending Badge & Clear Button ***
+// 2. Profile Page (Updated History Labels)
 export function profilePage(user: any, historyItems: any[], msg="") {
     const list = historyItems.length ? historyItems.map(i => {
-       // Logic for Badge: If type is bet and status is pending -> Show Yellow Pending Badge
-       // If type is win -> Show Green Win
-       // If type is topup -> Show Blue Topup
-       let badgeClass = 'bg-bet';
-       let badgeText = `-${i.amount}`;
-       
-       if (i.type === 'win') {
-           badgeClass = 'bg-win';
-           badgeText = `+${i.amount}`;
-       } else if (i.type === 'topup') {
-           badgeClass = 'bg-topup';
-           badgeText = `+${i.amount}`;
-       } else if (i.type === 'bet' && i.status === 'pending') {
-           badgeClass = 'bg-pending';
-           badgeText = 'Pending';
-       }
+       let badgeClass = 'bg-bet', text = '', sign = '-';
+       if (i.type === 'win') { badgeClass='bg-win'; text='Win'; sign='+'; }
+       else if (i.type === 'topup') { badgeClass='bg-topup'; text='Deposit'; sign='+'; }
+       else if (i.type === 'withdraw') { badgeClass='bg-withdraw'; text='Withdraw'; sign='-'; }
+       else if (i.status === 'pending') { badgeClass='bg-pending'; text='Pending'; sign='-'; }
+       else { text='Bet'; }
 
        return `
        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; background:white;">
-          <div>
-             <div style="font-weight:600; font-size:0.95rem;">${i.description}</div>
-             <div style="font-size:0.75rem; color:#888;">${toMMTime(i.timestamp)}</div>
-          </div>
+          <div><div style="font-weight:600;">${i.description}</div><div style="font-size:0.75rem; color:#888;">${toMMTime(i.timestamp)}</div></div>
           <div style="text-align:right;">
-             <div style="font-weight:bold; font-size:0.9rem;">${i.type==='bet' ? '-'+i.amount : '+'+i.amount}</div>
-             <div class="badge ${badgeClass}">${badgeText === 'Pending' ? 'Pending' : (i.type === 'bet' ? 'Bet' : 'Success')}</div>
+             <div style="font-weight:bold;">${sign}${i.amount}</div>
+             <div class="badge ${badgeClass}">${text}</div>
           </div>
-       </div>
-    `}).join('') : '<div style="padding:20px; text-align:center; color:#888;">မှတ်တမ်း မရှိပါ</div>';
+       </div>`;
+    }).join('') : '<div style="padding:20px; text-align:center; color:#888;">မှတ်တမ်း မရှိပါ</div>';
 
     return layout(`
       <div style="background:var(--primary); padding:30px 20px; color:white; border-radius:0 0 20px 20px; text-align:center;">
           <div style="font-size:2rem; font-weight:bold;">${user.username}</div>
-          <div style="opacity:0.9;">လက်ကျန်ငွေ: ${user.balance.toLocaleString()} Ks</div>
+          <div>လက်ကျန်ငွေ: ${user.balance.toLocaleString()} Ks</div>
       </div>
-      
       ${msg ? `<div style="text-align:center; padding:10px; background:#e8f5e9; color:green; margin:10px;">${msg}</div>` : ''}
-
       <div style="margin-top:-20px; padding:0 15px;">
-         
-         <!-- History Section Header -->
-         <div style="display:flex; justify-content:space-between; align-items:center; margin: 10px 5px;">
-             <h4 style="margin:0;">📜 မှတ်တမ်း</h4>
-             <form method="POST" action="/profile/clear" onsubmit="return confirmClear()">
-                 <button type="submit" class="btn-clear">
-                    <span>🗑️</span> ရှင်းမည်
-                 </button>
+         <div style="display:flex; justify-content:space-between; align-items:center; margin:10px 5px;">
+             <h4>📜 မှတ်တမ်း</h4>
+             <form method="POST" action="/profile/clear" onsubmit="return checkConfirm(event, 'Pending မှလွဲ၍ ကျန်သည်များ ဖျက်မည်။ သေချာလား?')">
+                 <button class="danger" style="padding:5px 10px; font-size:0.8rem;">🗑️ ရှင်းမည်</button>
              </form>
          </div>
-
-         <div class="card" style="padding:0; overflow:hidden; max-height:400px; overflow-y:auto;">
-            ${list}
-         </div>
-
-         <!-- Password Change -->
+         <div class="card" style="padding:0; overflow:hidden; max-height:400px; overflow-y:auto;">${list}</div>
          <div class="card">
-             <h4>🔐 Password ချိန်းရန်</h4>
+             <h4>🔐 Password ပြောင်းရန်</h4>
              <form method="POST" action="/profile/password">
-                 <input type="password" name="new_password" placeholder="Password အသစ်ရိုက်ပါ" required>
-                 <button type="submit" class="secondary">ပြောင်းမည်</button>
+                 <input type="password" name="new_password" placeholder="စကားဝှက် အသစ်" required>
+                 <button class="secondary">ပြောင်းမည်</button>
              </form>
          </div>
-
          <div style="text-align:center; margin-bottom:20px;">
-             <form method="POST" action="/logout"><button class="danger" style="width:auto;">Logout</button></form>
+             <form method="POST" action="/logout"><button class="danger" style="width:auto;">အကောင့်ထွက်မည်</button></form>
          </div>
       </div>
     `, '/profile', true);
 }
 
-export function loginPage(e=""){return layout(`<div style="display:flex; height:100vh; align-items:center; justify-content:center; background:white;"><div style="width:80%;"><h1 style="color:var(--primary);">Login</h1><form method="POST" action="/login"><input name="username" placeholder="User" required><input type="password" name="password" placeholder="Pass" required><button>Login</button></form><br><a href="/register">Register</a></div></div>`, '/login');}
-export function registerPage(e=""){return layout(`<div style="display:flex; height:100vh; align-items:center; justify-content:center; background:white;"><div style="width:80%;"><h1 style="color:var(--primary);">Register</h1><form method="POST" action="/register"><input name="username" placeholder="User" required><input type="password" name="password" placeholder="Pass" required><button>Register</button></form><br><a href="/login">Login</a></div></div>`, '/register');}
-export function adminPage(m="") { return layout(`<h2>Admin</h2>${m}<div class="card"><form method="POST" action="/admin/topup"><input name="username" placeholder="User"><input name="amount" placeholder="Amt"><button>Topup</button></form></div><div class="card"><form method="POST" action="/admin/payout"><input name="number" placeholder="Win Num"><select name="session"><option value="morning">Morning</option><option value="evening">Evening</option></select><button>Payout</button></form></div>`, '/admin', true); }
+// 3. Admin Page (With Winners List)
+export function adminPage(winners: string[] = [], msg="") { 
+    return layout(`
+    <h2>👮‍♂️ Admin Panel</h2>
+    ${msg ? `<div style="padding:10px; background:#d1e7dd; margin-bottom:10px;">${msg}</div>` : ''}
+    
+    ${winners.length > 0 ? `
+    <div class="card" style="border:2px solid green;">
+        <h3>🎉 ယခုပေါက်သူများ (${winners.length})</h3>
+        <ul style="max-height:150px; overflow-y:auto;">${winners.map(w => `<li>${w}</li>`).join('')}</ul>
+    </div>` : ''}
+
+    <div class="card">
+        <h3>💰 ငွေစာရင်း</h3>
+        <form method="POST" action="/admin/manage_money">
+            <input name="username" placeholder="Username" required>
+            <input name="amount" type="number" placeholder="Amount" required>
+            <div class="grid-2">
+                <button type="submit" name="action" value="topup" class="secondary">ငွေဖြည့်</button>
+                <button type="submit" name="action" value="withdraw" class="danger">ငွေထုတ်</button>
+            </div>
+        </form>
+    </div>
+    
+    <div class="card">
+        <h3>🏆 လျော်ကြေး (Payout)</h3>
+        <form method="POST" action="/admin/payout" onsubmit="return checkConfirm(event, 'လျော်ကြေးရှင်းမှာ သေချာလား?')">
+            <input name="number" placeholder="ထွက်ဂဏန်း (e.g. 55)" required>
+            <select name="session"><option value="morning">Morning</option><option value="evening">Evening</option></select>
+            <button class="admin">ရှင်းမည်</button>
+        </form>
+    </div>
+    `, '/admin', true); 
+}
+
+export function loginPage(e=""){return layout(`<div style="display:flex; height:100vh; align-items:center; justify-content:center; background:white;"><div style="width:85%;"><h2 style="color:var(--primary); text-align:center;">အကောင့်ဝင်ရန်</h2>${e?`<p style="color:red; text-align:center;">${e}</p>`:''}<form method="POST" action="/login"><input name="username" placeholder="အသုံးပြုသူအမည်" required><input type="password" name="password" placeholder="စကားဝှက်" required><button>ဝင်ရောက်မည်</button></form><br><div style="text-align:center;"><a href="/register" style="color:#666;">အကောင့်မရှိဘူးလား? <b>အကောင့်သစ်ဖွင့်ပါ</b></a></div></div></div>`, '/login');}
+export function registerPage(e=""){return layout(`<div style="display:flex; height:100vh; align-items:center; justify-content:center; background:white;"><div style="width:85%;"><h2 style="color:var(--primary); text-align:center;">အကောင့်သစ်ဖွင့်ရန်</h2>${e?`<p style="color:red; text-align:center;">${e}</p>`:''}<form method="POST" action="/register"><input name="username" placeholder="အသုံးပြုသူအမည်" required><input type="password" name="password" placeholder="စကားဝှက်" required><button class="secondary">စာရင်းသွင်းမည်</button></form><br><div style="text-align:center;"><a href="/login" style="color:#666;">အကောင့်ရှိပြီးသားလား? <b>ဝင်ရောက်ပါ</b></a></div></div></div>`, '/register');}
+export function voucherPage(d){return layout(`<div class="card" style="text-align:center;"><div style="font-size:3rem;">✅</div><h2>အောင်မြင်ပါသည်</h2><div id="voucher-div" style="background:#fffde7; padding:20px; border:1px dashed #aaa; text-align:left;"><div>Name: ${d.username}</div><div>Time: ${toMMTime(Date.now())}</div><hr><div style="display:flex; gap:5px; flex-wrap:wrap;">${d.bets.map(b=>`<span>${b.num}-${b.amt}</span>`).join(' ')}</div><hr><div style="text-align:right; font-weight:bold;">Total: ${d.total} Ks</div></div><button onclick="dlVoucher()" class="secondary">Save Image</button><br><br><a href="/"><button>နောက်တစ်ခု</button></a></div>`, '/');}
+export function winHistoryPage(r){return layout(`<div class="header-card"><h2>🏆 ထွက်ဂဏန်း</h2></div><div style="padding:15px;">${r.map(x=>`<div class="card" style="display:flex; justify-content:space-between; align-items:center;"><div><b>${x.date}</b><div class="badge" style="background:#eee;">${x.session}</div></div><div style="font-size:2rem; color:var(--primary); font-weight:bold;">${x.number}</div></div>`).join('')}</div>`, '/results', true);}
