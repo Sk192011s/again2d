@@ -8,18 +8,11 @@ function getSessionId(req: Request) {
   return cookie?.split("session=")[1]?.split(";")[0];
 }
 
-// Betting Number Generator
 function generateNumbers(type: string, input1: string, input2: string): string[] {
   const nums = new Set<string>();
   if (type === "normal") {
     nums.add(input1);
     if (input2 === "yes") nums.add(input1.split("").reverse().join(""));
-  } else if (type === "head_tail") {
-    const digit = input2;
-    for (let i = 0; i <= 9; i++) {
-      if (input1 === "head") nums.add(digit + i);
-      else nums.add(i + digit);
-    }
   } else if (type === "shortcut") {
     if (input1 === "double") ["00","11","22","33","44","55","66","77","88","99"].forEach(n => nums.add(n));
     else if (input1 === "power") ["05","50","16","61","27","72","38","83","49","94"].forEach(n => nums.add(n));
@@ -27,19 +20,36 @@ function generateNumbers(type: string, input1: string, input2: string): string[]
   return Array.from(nums);
 }
 
+// Time Checking Logic (Myanmar Time)
+function isBettingAllowed() {
+    const now = new Date();
+    // Convert to Myanmar Time
+    const mmTime = new Date(now.getTime() + (6.5 * 60 * 60 * 1000));
+    const hours = mmTime.getUTCHours();
+    const minutes = mmTime.getUTCMinutes();
+    const totalMinutes = hours * 60 + minutes;
+
+    // Morning Close: 11:45 AM = 11*60 + 45 = 705 minutes
+    // Evening Start: 12:00 PM = 720 minutes (Assuming betting re-opens after morning result)
+    // Evening Close: 3:45 PM (15:45) = 15*60 + 45 = 945 minutes
+
+    if (totalMinutes < 705) return { allowed: true }; // Morning Session
+    if (totalMinutes >= 720 && totalMinutes < 945) return { allowed: true }; // Evening Session
+    
+    return { allowed: false, msg: "ထိုးချိန်ပိတ်သွားပါပြီ (11:45 AM / 3:45 PM)" };
+}
+
 async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const session = getSessionId(req);
   const user = await db.getUserBySession(session || null);
 
-  // --- Auth Routes ---
+  // --- Login/Register ---
   if (url.pathname === "/login") {
     if (req.method === "POST") {
       const form = await req.formData();
       const res = await db.loginUser(form.get("username") as string, form.get("password") as string);
-      if (res.success) {
-        return new Response(null, { status: 303, headers: { "location": "/", "set-cookie": `session=${res.session}; HttpOnly; Path=/` } });
-      }
+      if (res.success) return new Response(null, { status: 303, headers: { "location": "/", "set-cookie": `session=${res.session}; HttpOnly; Path=/` } });
       return new Response(ui.loginPage(res.msg), { headers: { "content-type": "text/html" } });
     }
     return new Response(ui.loginPage(), { headers: { "content-type": "text/html" } });
@@ -49,7 +59,7 @@ async function handler(req: Request): Promise<Response> {
     if (req.method === "POST") {
       const form = await req.formData();
       const res = await db.registerUser(form.get("username") as string, form.get("password") as string);
-      if (res.success) return new Response(ui.loginPage("အကောင့်ဖွင့်ပြီးပါပြီ။ ဝင်ရောက်ပါ။"), { headers: { "content-type": "text/html" } });
+      if (res.success) return new Response(ui.loginPage("Success. Please Login."), { headers: { "content-type": "text/html" } });
       return new Response(ui.registerPage(res.msg), { headers: { "content-type": "text/html" } });
     }
     return new Response(ui.registerPage(), { headers: { "content-type": "text/html" } });
@@ -60,34 +70,45 @@ async function handler(req: Request): Promise<Response> {
     return new Response(null, { status: 302, headers: { "location": "/login", "set-cookie": "session=; Max-Age=0" } });
   }
 
+  // --- Public Routes ---
+  if (url.pathname === "/results") {
+      const results = await db.getWinResults();
+      return new Response(ui.winHistoryPage(results), { headers: { "content-type": "text/html" } });
+  }
+
   if (!user) return new Response(null, { status: 302, headers: { "location": "/login" } });
 
-  // --- Main Logic ---
+  // --- Betting & User ---
   if (url.pathname === "/" && req.method === "GET") {
     return new Response(ui.homePage(user), { headers: { "content-type": "text/html" } });
   }
 
-  // --- Betting Handler ---
   if (url.pathname === "/bet" && req.method === "POST") {
+    // 1. Check Time
+    const timeCheck = isBettingAllowed();
+    if (!timeCheck.allowed) {
+        return new Response(ui.homePage(user, `❌ ${timeCheck.msg}`), { headers: { "content-type": "text/html" } });
+    }
+
     const form = await req.formData();
     const type = form.get("type") as string;
     const amount = Number(form.get("amount"));
     
-    // Generate Numbers based on Type
-    let numbersToBet: string[] = [];
-    if (type === "normal") {
-      numbersToBet = generateNumbers("normal", form.get("number") as string, form.get("r_bet") as string);
-    } else if (type === "head_tail") {
-      numbersToBet = generateNumbers("head_tail", form.get("position") as string, form.get("digit") as string);
-    } else if (type === "shortcut") {
-      numbersToBet = generateNumbers("shortcut", form.get("set") as string, "");
+    // 2. Check Amount Limits
+    if (amount < 100 || amount > 100000) {
+        return new Response(ui.homePage(user, `❌ ပမာဏသည် 100 မှ 100,000 ကြား ဖြစ်ရမည်။`), { headers: { "content-type": "text/html" } });
     }
 
+    let numbersToBet: string[] = [];
+    if (type === "normal") numbersToBet = generateNumbers("normal", form.get("number") as string, form.get("r_bet") as string);
+    else if (type === "shortcut") numbersToBet = generateNumbers("shortcut", form.get("set") as string, "");
+    
     const totalCost = amount * numbersToBet.length;
+    
+    // Refresh User Balance
     const currentUser = (await db.getUserBySession(session))!;
-
     if (currentUser.balance < totalCost) {
-      return new Response(ui.homePage(currentUser, `❌ လက်ကျန်ငွေမလောက်ပါ။ (လိုအပ်ငွေ: ${totalCost} ကျပ်)`), { headers: { "content-type": "text/html" } });
+      return new Response(ui.homePage(currentUser, `❌ လက်ကျန်ငွေမလောက်ပါ။ (လိုအပ်ငွေ: ${totalCost})`), { headers: { "content-type": "text/html" } });
     }
 
     const betDetails = [];
@@ -102,44 +123,39 @@ async function handler(req: Request): Promise<Response> {
     return new Response(ui.voucherPage({ username: currentUser.username, bets: betDetails, total: totalCost }), { headers: { "content-type": "text/html" } });
   }
 
-  // --- Profile Handler ---
   if (url.pathname === "/profile") {
     const cursor = url.searchParams.get("cursor") || "";
-    const tab = url.searchParams.get("tab") || "history";
     const { items, nextCursor } = await db.getHistory(user.username, cursor, 10);
-    return new Response(ui.profilePage(user, items, nextCursor, tab), { headers: { "content-type": "text/html" } });
+    return new Response(ui.profilePage(user, items, nextCursor), { headers: { "content-type": "text/html" } });
   }
 
   if (url.pathname === "/profile/password" && req.method === "POST") {
     const form = await req.formData();
     await db.changePassword(user.username, form.get("new_password") as string);
-    return new Response(ui.profilePage(user, [], "", "settings", "Password ပြောင်းလဲပြီးပါပြီ"), { headers: { "content-type": "text/html" } });
+    return new Response(ui.profilePage(user, [], "",), { headers: { "content-type": "text/html" } });
   }
 
-  // --- Admin Handler ---
+  // --- Admin ---
   if (url.pathname.startsWith("/admin") && user.role === "admin") {
       if (url.pathname === "/admin") return new Response(ui.adminPage(), { headers: { "content-type": "text/html" } });
       
-      // Topup
       if (url.pathname === "/admin/topup" && req.method === "POST") {
           const form = await req.formData();
           const ok = await db.topUpUser(form.get("username") as string, Number(form.get("amount")));
-          return new Response(ui.adminPage(ok ? "Topup Success" : "User Not Found"), { headers: { "content-type": "text/html" } });
+          return new Response(ui.adminPage(ok ? "Topup Success" : "Failed"), { headers: { "content-type": "text/html" } });
       }
       
-      // Payout
       if (url.pathname === "/admin/payout" && req.method === "POST") {
           const form = await req.formData();
           const sessionType = form.get("session") as "morning" | "evening";
-          const count = await db.processPayout(form.get("number") as string, Number(form.get("multiplier")), sessionType);
-          return new Response(ui.adminPage(`Payout Done (${sessionType}): ${count} winners`), { headers: { "content-type": "text/html" } });
+          const count = await db.processPayout(form.get("number") as string, 80, sessionType);
+          return new Response(ui.adminPage(`Payout Done (${count} winners)`), { headers: { "content-type": "text/html" } });
       }
 
-      // Reset Password
       if (url.pathname === "/admin/resetpass" && req.method === "POST") {
           const form = await req.formData();
           const ok = await db.adminResetPassword(form.get("username") as string, form.get("new_password") as string);
-          return new Response(ui.adminPage(ok ? "Password Reset Success" : "User Not Found"), { headers: { "content-type": "text/html" } });
+          return new Response(ui.adminPage(ok ? "Reset Success" : "User Not Found"), { headers: { "content-type": "text/html" } });
       }
   }
 
