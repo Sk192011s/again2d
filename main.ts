@@ -114,6 +114,17 @@ async function handler(req: Request): Promise<Response> {
       return new Response(ui.profilePage(user, items, "မှတ်တမ်းများကို ရှင်းလင်းပြီးပါပြီ"), {headers:{"content-type":"text/html"}});
   }
 
+  // New Route: Delete Single History Item
+  if (url.pathname === "/profile/delete_item" && req.method === "POST") {
+      const f = await req.formData();
+      const id = f.get("id") as string;
+      const ts = Number(f.get("ts"));
+      await db.deleteHistoryItem(user.username, ts, id);
+      
+      const {items} = await db.getHistory(user.username, "", 50);
+      return new Response(ui.profilePage(user, items, "ဖျက်ပြီးပါပြီ"), {headers:{"content-type":"text/html"}});
+  }
+
   if (url.pathname === "/bet" && req.method === "POST") {
      const status = await db.getGameStatus();
      const check = await checkBettingStatus(status);
