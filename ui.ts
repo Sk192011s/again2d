@@ -9,6 +9,13 @@ function toMMTime(timestamp: number) {
     return `${date.getUTCDate()}/${date.getUTCMonth()+1} ${hours}:${minutes} ${ampm}`;
 }
 
+// New helper for Date Only
+function getTodayDate() {
+    const date = new Date(Date.now() + (6.5 * 60 * 60 * 1000));
+    const day = date.toLocaleDateString('en-US', { weekday: 'long' }); // e.g. Monday
+    return `${date.getUTCDate()}-${date.getUTCMonth()+1}-${date.getUTCFullYear()} (${day})`;
+}
+
 export function layout(content: string, currentPath: string, isLoggedIn = false) {
   return `
     <!DOCTYPE html>
@@ -56,7 +63,6 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
           .bg-topup { background: #cff4fc; color: #055160; }
           .bg-withdraw { background: #e2e3e5; color: #383d41; }
 
-          /* Modal */
           .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 3000; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
           .modal-box { background: white; width: 85%; max-width: 350px; border-radius: 20px; padding: 25px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transform: scale(0.9); transition: transform 0.2s; }
           .modal-box.open { transform: scale(1); }
@@ -117,8 +123,6 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
                if(amtInput && !amtInput.value) { alert("ပမာဏ ထည့်ပါ"); return false; }
 
                let detailText = desc || "လုပ်ဆောင်ချက်ကို အတည်ပြုပါ။";
-               
-               // For Admin Forms
                const userInput = form.querySelector('[name="username"]');
                if(userInput && userInput.tagName === 'SELECT') {
                    const selectedUser = userInput.options[userInput.selectedIndex].text;
@@ -153,17 +157,34 @@ export function layout(content: string, currentPath: string, isLoggedIn = false)
   `;
 }
 
-// ... Home, Profile, Login pages remain same ...
 export function homePage(user: any, gameStatus: any, msg = "") {
   const sessTxt = gameStatus.currentSession === 'morning' ? "☀️ မနက်ပိုင်း (12:00)" : "🌙 ညနေပိုင်း (4:30)";
-  const isClosed = !gameStatus.isOpen || gameStatus.isManuallyClosed;
-  const statusColor = isClosed ? "#f44336" : "#4caf50";
-  const statusTxt = isClosed ? "ပိတ်ထားသည်" : "ဖွင့်သည်";
+  
+  // ** Check Time for Auto Close Display **
+  const now = new Date();
+  const mmTime = new Date(now.getTime() + (6.5 * 60 * 60 * 1000));
+  const totalMinutes = mmTime.getUTCHours() * 60 + mmTime.getUTCMinutes();
+  
+  const isMorningClose = gameStatus.currentSession === 'morning' && totalMinutes >= 705; // 11:45
+  const isEveningClose = gameStatus.currentSession === 'evening' && totalMinutes >= 945; // 15:45
+  
+  // UI shows CLOSED if: Manually closed OR Admin closed OR Time is up
+  const showClosed = !gameStatus.isOpen || gameStatus.isManuallyClosed || isMorningClose || isEveningClose;
+  
+  const statusColor = showClosed ? "#f44336" : "#4caf50";
+  const statusTxt = showClosed ? "ပိတ်ထားသည်" : "ဖွင့်သည်";
+  
+  // Date
+  const todayDate = getTodayDate();
 
   return layout(`
     <div class="header-card">
        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div><h3 style="margin:0;">မင်္ဂလာပါ,</h3><h2 style="margin:0;">${user.username}</h2></div>
+          <div>
+            <h3 style="margin:0;">မင်္ဂလာပါ,</h3>
+            <h2 style="margin:0;">${user.username}</h2>
+            <small style="opacity:0.8;">${todayDate}</small>
+          </div>
           <div style="text-align:right;"><div style="opacity:0.9;">လက်ကျန်ငွေ</div><div style="font-size:1.4rem; font-weight:bold;">${user.balance.toLocaleString()} Ks</div></div>
        </div>
        <div style="margin-top:15px; background:rgba(255,255,255,0.15); padding:10px; border-radius:10px; display:flex; justify-content:space-between;">
@@ -184,7 +205,7 @@ export function homePage(user: any, gameStatus: any, msg = "") {
     </div>
 
     <div id="tab-2d" class="tab-content active"><div class="card"><h4>💎 ရိုးရိုးထိုး (R ပါ)</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="normal"><div class="grid-2"><input name="number" type="tel" maxlength="2" placeholder="ဂဏန်း" required><input name="amount" type="number" placeholder="ပမာဏ" required></div><div style="margin:10px 0;"><input type="checkbox" name="r_bet" value="yes" style="width:auto"> R (အပြန်အလှန်)</div><button onclick="triggerConfirm(event, '2D ရိုးရိုး ထိုးမည်။')">ထိုးမည်</button></form></div></div>
-    <div id="tab-break" class="tab-content"><div class="card"><h4>⚡ Break</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="break"><input name="digits" type="tel" maxlength="3" placeholder="ဂဏန်း ၃ လုံး (e.g. 538)" required style="text-align:center; letter-spacing:5px;"><input name="amount" type="number" placeholder="ပမာဏ" required><button class="secondary" onclick="triggerConfirm(event, 'Break ထိုးမည်။')">ထိုးမည်</button></form></div></div>
+    <div id="tab-break" class="tab-content"><div class="card"><h4>⚡ Break</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="break"><input name="digits" type="tel" maxlength="3" placeholder="ဂဏန်း ၃ လုံး" required style="text-align:center; letter-spacing:5px;"><input name="amount" type="number" placeholder="ပမာဏ" required><button class="secondary" onclick="triggerConfirm(event, 'Break ထိုးမည်။')">ထိုးမည်</button></form></div></div>
     <div id="tab-ht" class="tab-content"><div class="card"><h4>🔢 လုံးစီး</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="head_tail"><div class="grid-2"><select name="position"><option value="head">ထိပ်စီး</option><option value="tail">နောက်ပိတ်</option></select><input name="digit" type="tel" maxlength="1" placeholder="ဂဏန်း" required></div><input name="amount" type="number" placeholder="ပမာဏ" required><button onclick="triggerConfirm(event, 'လုံးစီး ထိုးမည်။')">ထိုးမည်</button></form></div></div>
     <div id="tab-short" class="tab-content"><div class="card"><h4>🚀 Shortcut</h4><form method="POST" action="/bet"><input type="hidden" name="type" value="shortcut"><div class="grid-2"><button type="submit" name="set" value="double" class="secondary" style="background:#ffb75e; color:black;" onclick="triggerConfirm(event, 'အပူး ထိုးမည်')">အပူး</button><button type="submit" name="set" value="power" class="secondary" style="background:#8f94fb;" onclick="triggerConfirm(event, 'ပါဝါ ထိုးမည်')">ပါဝါ</button></div><input name="amount" type="number" placeholder="ပမာဏ" required style="margin-top:10px;"></form></div></div>
     
@@ -204,7 +225,6 @@ export function profilePage(user: any, historyItems: any[], msg="") {
     return layout(`<div style="background:var(--primary); padding:30px 20px; color:white; border-radius:0 0 20px 20px; text-align:center;"><div style="font-size:2rem; font-weight:bold;">${user.username}</div><div>လက်ကျန်ငွေ: ${user.balance.toLocaleString()} Ks</div></div>${msg?`<div style="text-align:center; padding:10px; background:#e8f5e9; color:green; margin:10px;">${msg}</div>`:''}<div style="margin-top:-20px; padding:0 15px;"><div style="display:flex; justify-content:space-between; align-items:center; margin:10px 5px;"><h4>📜 မှတ်တမ်း</h4><form method="POST" action="/profile/clear"><button class="danger" class="btn-clear" onclick="triggerConfirm(event, 'Pending မှလွဲ၍ ကျန်သည်များ ဖျက်မည်')">🗑️ ရှင်းမည်</button></form></div><div class="card" style="padding:0; overflow:hidden; max-height:400px; overflow-y:auto;">${list}</div><div class="card"><h4>🔐 Password</h4><form method="POST" action="/profile/password"><input type="password" name="new_password" placeholder="New Pass" required><button class="secondary" onclick="triggerConfirm(event, 'Password ပြောင်းမည်')">ပြောင်းမည်</button></form></div><div style="text-align:center; margin-bottom:20px;"><form method="POST" action="/logout"><button class="danger" style="width:auto;" onclick="triggerConfirm(event, 'Logout လုပ်မည်')">Logout</button></form></div></div>`, '/profile', true);
 }
 
-// ** Updated Admin Page: Split Forms for Topup & Withdraw **
 export function adminPage(users: any[], winners: string[] = [], msg="", gameStatus: any) { 
     const userOptions = users.map(u => `<option value="${u.username}">${u.username} (${u.balance} Ks)</option>`).join('');
 
@@ -222,8 +242,6 @@ export function adminPage(users: any[], winners: string[] = [], msg="", gameStat
     <div class="card">
         <h3>💰 ငွေစာရင်း</h3>
         <label>User ရွေးပါ:</label>
-        
-        <!-- Topup Form -->
         <form method="POST" action="/admin/manage_money" style="margin-top:10px; border-bottom:1px solid #eee; padding-bottom:15px;">
             <input type="hidden" name="action" value="topup">
             <select name="username" required>${userOptions}</select>
@@ -232,8 +250,6 @@ export function adminPage(users: any[], winners: string[] = [], msg="", gameStat
                 <button type="submit" class="secondary" onclick="triggerConfirm(event, 'ငွေဖြည့်မည်')">ငွေဖြည့်</button>
             </div>
         </form>
-
-        <!-- Withdraw Form -->
         <form method="POST" action="/admin/manage_money" style="margin-top:15px;">
             <input type="hidden" name="action" value="withdraw">
             <select name="username" required>${userOptions}</select>
