@@ -1,6 +1,11 @@
 // db.ts
 export const kv = await Deno.openKv();
 
+// 🔥 ADMIN SETTINGS (Deno Env မှ ယူမည်) 🔥
+// Default: Username="admin", Password="123" (Deno မှာ မထည့်ထားရင် သုံးရန်)
+const ADMIN_USER = Deno.env.get("ADMIN_USERNAME") || "admin";
+const ADMIN_PASS = Deno.env.get("ADMIN_PASSWORD") || "123"; 
+
 export interface User {
   username: string;
   password: string;
@@ -18,17 +23,6 @@ export interface HistoryItem {
   status?: "pending" | "won" | "lost";
 }
 
-export interface Bet {
-  username: string;
-  number: string;
-  amount: number;
-  status: string;
-  timestamp: number;
-  // Link to history item to update status later
-  historyId: string; 
-  historyTimestamp: number; 
-}
-
 export interface WinResult {
   date: string;
   session: "morning" | "evening";
@@ -42,6 +36,26 @@ export interface GameStatus {
   isManuallyClosed: boolean;
   lastUpdated: number;
 }
+
+// --- ADMIN AUTO INIT ---
+export async function initAdmin() {
+    const res = await kv.get<User>(["users", ADMIN_USER]);
+    const currentAdmin = res.value;
+
+    // Admin Data ကို Update လုပ်မယ် (Password ကို Env ကအတိုင်း ထားမယ်)
+    const adminData: User = {
+        username: ADMIN_USER,
+        password: ADMIN_PASS, 
+        balance: currentAdmin ? currentAdmin.balance : 100000000, 
+        role: "admin",
+        session: currentAdmin?.session
+    };
+
+    await kv.set(["users", ADMIN_USER], adminData);
+    console.log("Admin Init Done with Env Password.");
+}
+
+await initAdmin();
 
 // --- Game Status ---
 export async function getGameStatus() {
@@ -98,8 +112,19 @@ export async function registerUser(username: string, password: string) {
 }
 
 export async function loginUser(username: string, password: string) {
+  // Admin Login ဆိုရင် Env ထဲက Password နဲ့ တိုက်စစ်မယ် (အလုံခြုံဆုံး)
+  if (username === ADMIN_USER && password === ADMIN_PASS) {
+      const user = await getUser(username);
+      if (user) {
+          const session = crypto.randomUUID();
+          await kv.set(["users", username], { ...user, session });
+          await kv.set(["sessions", session], username);
+          return { success: true, session };
+      }
+  }
+
   const user = await getUser(username);
-  if (!user || user.password !== password) return { success: false, msg: "အချက်အလက် မှားယွင်းနေပါသည်" };
+  if (!user || user.password !== password) return { success: false, msg: "အမည် (သို့) စကားဝှက် မှားယွင်းနေပါသည်" };
   const session = crypto.randomUUID();
   await kv.set(["users", username], { ...user, session });
   await kv.set(["sessions", session], username);
@@ -124,7 +149,6 @@ export async function changePassword(username: string, newPass: string) {
 }
 
 // --- History & Betting ---
-// Modified to return the IDs so we can link them
 export async function addHistory(username: string, type: "bet" | "topup" | "withdraw" | "win", amount: number, desc: string, status: "pending"|"won"|"lost" = "won") {
   const id = crypto.randomUUID();
   const timestamp = Date.now();
@@ -134,18 +158,16 @@ export async function addHistory(username: string, type: "bet" | "topup" | "with
   return { id, timestamp };
 }
 
-// Clear all except Pending and Win
 export async function clearUserHistory(username: string) {
     const iter = kv.list<HistoryItem>({ prefix: ["history", username] });
     for await (const res of iter) {
-        // Keep 'pending' AND keep 'win'
+        // Pending နဲ့ Win ကို ချန်ထားမယ် (ကျန်တာဖျက်မယ်)
         if (res.value.status !== 'pending' && res.value.type !== 'win') {
             await kv.delete(res.key);
         }
     }
 }
 
-// Delete specific item (For Win items)
 export async function deleteHistoryItem(username: string, timestamp: number, id: string) {
     await kv.delete(["history", username, timestamp, id]);
 }
@@ -153,18 +175,17 @@ export async function deleteHistoryItem(username: string, timestamp: number, id:
 export async function placeBet(user: User, number: string, amount: number) {
   if (user.balance < amount) return { success: false, msg: "လက်ကျန်ငွေ မလောက်ပါ" };
   
-  // 1. Add to History first to get IDs
   const hist = await addHistory(user.username, "bet", amount, `ထိုးဂဏန်း: ${number}`, "pending");
 
   const betId = crypto.randomUUID();
-  const betData: Bet = { 
+  const betData = { 
       username: user.username, 
       number, 
       amount, 
       status: "pending", 
       timestamp: Date.now(),
-      historyId: hist.id,           // LINKING HERE
-      historyTimestamp: hist.timestamp // LINKING HERE
+      historyId: hist.id,
+      historyTimestamp: hist.timestamp
   };
 
   const res = await kv.atomic()
@@ -193,7 +214,7 @@ export async function withdrawUser(username: string, amount: number) {
     return true;
 }
 
-// --- Payout Logic (Updated to fix Pending status) ---
+// --- Payout ---
 export async function addWinResult(number: string, session: "morning" | "evening") {
     const result: WinResult = { date: new Date().toISOString().split('T')[0], session, number, timestamp: Date.now() };
     await kv.set(["results", Date.now()], result);
@@ -212,7 +233,7 @@ export async function processPayout(number: string, multiplier: number, sessionT
   const mmOffset = 6.5 * 60 * 60 * 1000; 
 
   for await (const entry of entries) {
-    const bet = entry.value as Bet;
+    const bet: any = entry.value;
     const betHour = new Date(bet.timestamp + mmOffset).getUTCHours();
     
     let isMatchSession = false;
@@ -220,32 +241,22 @@ export async function processPayout(number: string, multiplier: number, sessionT
     if (sessionType === "evening" && betHour >= 12) isMatchSession = true;
 
     if (bet.status === "pending" && isMatchSession) {
-      // Find the original history item to update its status
       const histKey = ["history", bet.username, bet.historyTimestamp, bet.historyId];
       const histRes = await kv.get<HistoryItem>(histKey);
-      
+
       if (bet.number === number) {
-        // WINNER
         const winAmount = bet.amount * multiplier;
         const user = await getUser(bet.username);
         if (user) {
           await kv.set(["users", user.username], { ...user, balance: user.balance + winAmount });
-          
-          // Add NEW Win History
           await addHistory(user.username, "win", winAmount, `ထီပေါက်သည် (${number})`, "won");
-          
-          // Update Old Bet History to "won" (visual only, money already handled)
           if(histRes.value) await kv.set(histKey, { ...histRes.value, status: "won" });
-
-          await kv.delete(entry.key); // Remove from active bets
+          await kv.delete(entry.key); 
           winners.push(`${user.username} (+${winAmount})`);
         }
       } else {
-         // LOSER
-         // Update Old Bet History to "lost"
          if(histRes.value) await kv.set(histKey, { ...histRes.value, status: "lost" });
-         
-         await kv.delete(entry.key); // Remove from active bets
+         await kv.delete(entry.key); 
       }
     }
   }
