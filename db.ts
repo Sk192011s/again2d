@@ -27,16 +27,19 @@ export interface WinResult {
 
 export interface GameStatus {
   currentSession: "morning" | "evening";
-  isOpen: boolean; 
+  isOpen: boolean;       // System auto open/close based on payout
+  isManuallyClosed: boolean; // Admin manual override (New Feature)
   lastUpdated: number;
 }
 
-// --- Game Status ---
+// --- Game Status & Auto Switch ---
 export async function getGameStatus() {
   const res = await kv.get<GameStatus>(["game_status"]);
-  let status = res.value || { currentSession: "morning", isOpen: true, lastUpdated: Date.now() };
+  
+  // Default Initial State
+  let status = res.value || { currentSession: "morning", isOpen: true, isManuallyClosed: false, lastUpdated: Date.now() };
 
-  // Auto Switch Logic
+  // Auto Session Switch Logic (Time based)
   const now = new Date();
   const mmTime = new Date(now.getTime() + (6.5 * 60 * 60 * 1000));
   const hours = mmTime.getUTCHours();
@@ -58,6 +61,14 @@ export async function setGameStatus(status: GameStatus) {
   await kv.set(["game_status"], status);
 }
 
+// Admin Toggle Manual Close/Open
+export async function toggleManualStatus(close: boolean) {
+    const status = await getGameStatus();
+    status.isManuallyClosed = close;
+    await setGameStatus(status);
+    return status;
+}
+
 // --- User Logic ---
 export async function getUser(username: string) {
   const res = await kv.get<User>(["users", username]);
@@ -69,7 +80,7 @@ export async function registerUser(username: string, password: string) {
   if (existing) return { success: false, msg: "ဤအမည်ဖြင့် ရှိပြီးသားဖြစ်သည်" };
   const newUser: User = { username, password, balance: 0, role: username === "admin" ? "admin" : "user" };
   await kv.set(["users", username], newUser);
-  return { success: true, msg: "အကောင့်ဖွင့်ခြင်း အောင်မြင်ပါသည်" };
+  return { success: true, msg: "Success" };
 }
 
 export async function loginUser(username: string, password: string) {
@@ -130,10 +141,10 @@ export async function placeBet(user: User, number: string, amount: number) {
     await addHistory(user.username, "bet", amount, `ထိုးဂဏန်း: ${number}`, "pending");
     return { success: true };
   }
-  return { success: false, msg: "စနစ်ပိုင်းဆိုင်ရာ အမှားတစ်ခု ဖြစ်ပေါ်နေသည်" };
+  return { success: false, msg: "Error" };
 }
 
-// Topup & Withdraw
+// Money Mgmt
 export async function topUpUser(username: string, amount: number) {
   const user = await getUser(username);
   if (!user) return false;
@@ -165,7 +176,7 @@ export async function getWinResults(limit = 10) {
 
 export async function processPayout(number: string, multiplier: number, sessionType: "morning" | "evening") {
   const entries = kv.list({ prefix: ["bets"] });
-  const winners: string[] = []; // ပေါက်တဲ့သူစာရင်း
+  const winners: string[] = [];
   const mmOffset = 6.5 * 60 * 60 * 1000; 
 
   for await (const entry of entries) {
@@ -184,8 +195,6 @@ export async function processPayout(number: string, multiplier: number, sessionT
           await kv.set(["users", user.username], { ...user, balance: user.balance + winAmount });
           await addHistory(user.username, "win", winAmount, `ထီပေါက်သည် (${number})`, "won");
           await kv.delete(entry.key); 
-          
-          // Add to winner list (Unique names ideally, but list is okay)
           winners.push(`${user.username} (+${winAmount})`);
         }
       } else {
@@ -195,9 +204,6 @@ export async function processPayout(number: string, multiplier: number, sessionT
   }
 
   await addWinResult(number, sessionType);
-  const currentStatus = await getGameStatus();
-  await setGameStatus({ ...currentStatus, isOpen: true, lastUpdated: Date.now() });
-
   return winners;
 }
 
