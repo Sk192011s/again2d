@@ -18,6 +18,17 @@ export interface HistoryItem {
   status?: "pending" | "won" | "lost";
 }
 
+export interface Bet {
+  username: string;
+  number: string;
+  amount: number;
+  status: string;
+  timestamp: number;
+  // Link to history item to update status later
+  historyId: string; 
+  historyTimestamp: number; 
+}
+
 export interface WinResult {
   date: string;
   session: "morning" | "evening";
@@ -32,6 +43,7 @@ export interface GameStatus {
   lastUpdated: number;
 }
 
+// --- Game Status ---
 export async function getGameStatus() {
   const res = await kv.get<GameStatus>(["game_status"]);
   let status = res.value || { currentSession: "morning", isOpen: true, isManuallyClosed: false, lastUpdated: Date.now() };
@@ -40,7 +52,6 @@ export async function getGameStatus() {
   const mmTime = new Date(now.getTime() + (6.5 * 60 * 60 * 1000));
   const hours = mmTime.getUTCHours();
   
-  // Auto Switch Session based on time
   if (hours >= 12 && status.currentSession === 'morning') {
       status.currentSession = 'evening';
       status.isOpen = true; 
@@ -65,6 +76,7 @@ export async function toggleManualStatus(close: boolean) {
     return status;
 }
 
+// --- User Logic ---
 export async function getUser(username: string) {
   const res = await kv.get<User>(["users", username]);
   return res.value;
@@ -73,9 +85,7 @@ export async function getUser(username: string) {
 export async function getAllUsers() {
     const iter = kv.list<User>({ prefix: ["users"] });
     const users: User[] = [];
-    for await (const res of iter) {
-        users.push(res.value);
-    }
+    for await (const res of iter) users.push(res.value);
     return users;
 }
 
@@ -113,26 +123,49 @@ export async function changePassword(username: string, newPass: string) {
   return false;
 }
 
+// --- History & Betting ---
+// Modified to return the IDs so we can link them
 export async function addHistory(username: string, type: "bet" | "topup" | "withdraw" | "win", amount: number, desc: string, status: "pending"|"won"|"lost" = "won") {
   const id = crypto.randomUUID();
+  const timestamp = Date.now();
   const finalStatus = type === 'bet' ? 'pending' : status;
-  const item: HistoryItem = { id, type, amount, description: desc, timestamp: Date.now(), status: finalStatus };
-  await kv.set(["history", username, Date.now(), id], item);
+  const item: HistoryItem = { id, type, amount, description: desc, timestamp, status: finalStatus };
+  await kv.set(["history", username, timestamp, id], item);
+  return { id, timestamp };
 }
 
+// Clear all except Pending and Win
 export async function clearUserHistory(username: string) {
     const iter = kv.list<HistoryItem>({ prefix: ["history", username] });
     for await (const res of iter) {
-        if (res.value.status !== 'pending') {
+        // Keep 'pending' AND keep 'win'
+        if (res.value.status !== 'pending' && res.value.type !== 'win') {
             await kv.delete(res.key);
         }
     }
 }
 
+// Delete specific item (For Win items)
+export async function deleteHistoryItem(username: string, timestamp: number, id: string) {
+    await kv.delete(["history", username, timestamp, id]);
+}
+
 export async function placeBet(user: User, number: string, amount: number) {
   if (user.balance < amount) return { success: false, msg: "လက်ကျန်ငွေ မလောက်ပါ" };
+  
+  // 1. Add to History first to get IDs
+  const hist = await addHistory(user.username, "bet", amount, `ထိုးဂဏန်း: ${number}`, "pending");
+
   const betId = crypto.randomUUID();
-  const betData = { username: user.username, number, amount, status: "pending", timestamp: Date.now() };
+  const betData: Bet = { 
+      username: user.username, 
+      number, 
+      amount, 
+      status: "pending", 
+      timestamp: Date.now(),
+      historyId: hist.id,           // LINKING HERE
+      historyTimestamp: hist.timestamp // LINKING HERE
+  };
 
   const res = await kv.atomic()
     .check({ key: ["users", user.username], versionstamp: (await kv.get(["users", user.username])).versionstamp })
@@ -140,10 +173,7 @@ export async function placeBet(user: User, number: string, amount: number) {
     .set(["bets", betId], betData) 
     .commit();
 
-  if (res.ok) {
-    await addHistory(user.username, "bet", amount, `ထိုးဂဏန်း: ${number}`, "pending");
-    return { success: true };
-  }
+  if (res.ok) return { success: true };
   return { success: false, msg: "Error" };
 }
 
@@ -163,6 +193,7 @@ export async function withdrawUser(username: string, amount: number) {
     return true;
 }
 
+// --- Payout Logic (Updated to fix Pending status) ---
 export async function addWinResult(number: string, session: "morning" | "evening") {
     const result: WinResult = { date: new Date().toISOString().split('T')[0], session, number, timestamp: Date.now() };
     await kv.set(["results", Date.now()], result);
@@ -181,7 +212,7 @@ export async function processPayout(number: string, multiplier: number, sessionT
   const mmOffset = 6.5 * 60 * 60 * 1000; 
 
   for await (const entry of entries) {
-    const bet: any = entry.value;
+    const bet = entry.value as Bet;
     const betHour = new Date(bet.timestamp + mmOffset).getUTCHours();
     
     let isMatchSession = false;
@@ -189,17 +220,32 @@ export async function processPayout(number: string, multiplier: number, sessionT
     if (sessionType === "evening" && betHour >= 12) isMatchSession = true;
 
     if (bet.status === "pending" && isMatchSession) {
+      // Find the original history item to update its status
+      const histKey = ["history", bet.username, bet.historyTimestamp, bet.historyId];
+      const histRes = await kv.get<HistoryItem>(histKey);
+      
       if (bet.number === number) {
+        // WINNER
         const winAmount = bet.amount * multiplier;
         const user = await getUser(bet.username);
         if (user) {
           await kv.set(["users", user.username], { ...user, balance: user.balance + winAmount });
+          
+          // Add NEW Win History
           await addHistory(user.username, "win", winAmount, `ထီပေါက်သည် (${number})`, "won");
-          await kv.delete(entry.key); 
+          
+          // Update Old Bet History to "won" (visual only, money already handled)
+          if(histRes.value) await kv.set(histKey, { ...histRes.value, status: "won" });
+
+          await kv.delete(entry.key); // Remove from active bets
           winners.push(`${user.username} (+${winAmount})`);
         }
       } else {
-         await kv.delete(entry.key); 
+         // LOSER
+         // Update Old Bet History to "lost"
+         if(histRes.value) await kv.set(histKey, { ...histRes.value, status: "lost" });
+         
+         await kv.delete(entry.key); // Remove from active bets
       }
     }
   }
